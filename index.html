@@ -262,11 +262,11 @@ async function home(){
       <a href="#/report" style="display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.25);font-size:13px">
         <span>이번 달 지출 <b>${yen(h.month_spend)}</b></span><span>📊 월별·연간 결산 ›</span></a></div>
     ${h.notice ? card('📢 공지', `<div class="txt">${esc(h.notice)}</div>`) : ''}
+    ${h.polls.length ? card('🗳 진행 중인 투표', h.polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow">${esc(v.title)}${v.deadline ? `<div class="sub">마감 ${fdt(v.deadline)}</div>` : ''}</div>${v.voted ? '<span class="tag t-done">투표 완료</span>' : '<span class="tag t-wait">투표하기 ›</span>'}</a>`).join('')) : ''}
     ${h.next ? card('⚽ 다음 경기', `<a class="it" href="#/match/${h.next.id}"><div class="grow"><b>${esc(h.next.title)}${h.next.opponent ? ' vs ' + esc(h.next.opponent) : ''}</b>
         <div class="sub">${fdt(h.next.starts_at)} · ${esc(h.next.venue || '구장 미정')} · ${esc(h.next.format)}</div>
         <div class="sub">참석 <b style="color:${h.next.yes >= h.next.need ? '#2E7D32' : '#B3261E'}">${h.next.yes}</b> / 필요 ${h.next.need}명</div></div>
         ${h.next.mine ? tag(h.next.mine) : '<span class="tag t-wait">출석 체크 ›</span>'}</a>`) : ''}
-    ${h.polls.length ? card('🗳 진행 중인 투표', h.polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow">${esc(v.title)}${v.deadline ? `<div class="sub">마감 ${fdt(v.deadline)}</div>` : ''}</div>${v.voted ? '<span class="tag t-done">투표 완료</span>' : '<span class="tag t-wait">투표하기 ›</span>'}</a>`).join('')) : ''}
     ${h.todo.length ? card('✅ 내가 처리할 일', h.todo.map(t => `<a class="it" href="#/${t.kind}/${t.id}"><div class="grow">${esc(t.title)}</div>${tag(t.status)}</a>`).join('')) : ''}
     ${card('🗓 최근 확정 회의', h.meets.map(m => `<a class="it" href="#/meet/${m.id}"><div class="grow">${esc(m.title)}<div class="sub">${esc(m.mdate||'')}</div></div><span class="link">보기 ›</span></a>`).join('') || empty('아직 확정된 회의가 없습니다'))}
     ${card('💸 최근 지출', h.recent.map(p => `<a class="it" href="#/pay/${p.id}"><div class="grow">${esc(p.title)}<div class="sub">${esc(p.category)} · ${esc(p.applicant)}</div></div><span class="amt">${yen(p.amount)}</span></a>`).join('') || empty('아직 지출 내역이 없습니다'), '<a class="link" href="#/pays">전체 ›</a>')}`);

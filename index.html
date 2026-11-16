@@ -211,15 +211,16 @@ async function home(){
 async function pays(){
   const r = await api('pays', { status: PAYF });
   const F = ['','승인대기','승인','지급완료','반려'];
-  const canIn = ['회장','총무'].includes(ME.role);
+  const canIn = ['회장','총무'].includes(ME.role), isStaff = ['회장','부회장','총무','감독','코치'].includes(ME.role);
   V(`<div class="tabs">${F.map(f => `<a class="tab ${PAYF==f?'on':''}" onclick="PAYF='${f}';pays()">${f||'전체'}</a>`).join('')}</div>
     ${r.list.length ? `<div class="card">${r.list.map(p => `<a class="it" href="#/pay/${p.id}">
         <div class="grow"><div>${p.type=='수입'?'💰 ':''}${esc(p.title)}</div><div class="sub">${esc(p.applicant)} · ${esc(p.category)} · ${fdt(p.created_at)}</div></div>
         <div style="text-align:right"><div class="amt" style="color:${p.type=='수입'?'#2E7D32':'inherit'}">${p.type=='수입'?'+':''}${yen(p.amount)}</div>${p.type=='수입'?'<span class="tag t-done">입금</span>':tag(p.status)}</div></a>`).join('')}</div>` : empty('내역이 없습니다')}
-    <div class="fabs">${canIn ? '<a class="fab n" href="#/pay/new/in">+ 수입 등록</a>' : ''}<a class="fab" href="#/pay/new/out">+ 결제안</a></div>`);
+    <div class="fabs">${canIn ? '<a class="fab n" href="#/pay/new/in">+ 수입 등록</a>' : ''}${isStaff ? '<a class="fab" href="#/pay/new/out">+ 결제안</a>' : ''}</div>`);
 }
 function payNew(kind){
   const inc = kind == 'in', files = [];
+  if(!['회장','부회장','총무','감독','코치'].includes(ME.role)) { toast('결제안은 운영진만 올릴 수 있습니다'); return location.replace('#/pays') }
   const cats = inc ? ['회비','찬조','기타'] : ['구장','음료','장비','회식','유니폼','기타'];
   V(`<div class="card"><div class="ct">${inc ? '💰 수입 등록' : '📝 결제안 신청'}</div>
     <label>제목</label><input id="ft" placeholder="${inc ? '예) 11월 회비' : '예) 11월 셋째 주 구장 대여'}">
@@ -304,7 +305,7 @@ function line(m){
 }
 async function meetDetail(id){
   const m = (await api('meet', { id:+id })).m;
-  const staff = ['회장','부회장','총무'].includes(ME.role);
+  const staff = ['회장','부회장','총무','감독','코치'].includes(ME.role);
   const L = { done:'✓', now:'●', no:'✕', skip:'–', '':'–' }, S = { now:'검토 중', no:'반려', skip:'건너뜀', '':'대기' };
   const steps = line(m).map(([t,s,n], i) => `${i ? '<div class="bar"></div>' : ''}<div class="step"><div class="dot ${s}">${L[s]}</div><div class="st">${t}</div><div class="ss">${s=='done' ? esc(n||'완료') : S[s]}</div></div>`).join('');
   const canAct = (ME.role=='부회장' && m.status=='부회장검토') || (ME.role=='회장' && m.status=='회장결재');
@@ -339,7 +340,7 @@ async function meetAct(id, act){
 // ───── 조직도 · 회칙 ─────
 async function org(){
   const r = await api('org'), can = ['회장','총무'].includes(ME.role);
-  const ORD = ['회장','부회장','총무'], rank = u => (ORD.indexOf(u.role) + 1) || 9;
+  const ORD = ['회장','부회장','총무','감독','코치'], rank = u => (ORD.indexOf(u.role) + 1) || 9;
   const staff = r.users.filter(u => ORD.includes(u.role) || u.position).sort((a,b) => rank(a) - rank(b));
   const mem = r.users.filter(u => !staff.includes(u));
   const R = r.rules;
@@ -360,7 +361,7 @@ async function mePage(){
     ${can ? card('📢 홈 공지', `<textarea id="nt" placeholder="예) 이번 주 토요일 오전 9시 ○○구장">${esc(r.notice)}</textarea><button class="btn" id="ns">공지 저장</button>`) : ''}
     ${boss ? card('🛠 회원 관리', r.users.map(u => `<div class="it"><div class="grow">${esc(u.name)}<div class="sub">${u.approved ? esc(u.role) + (u.position ? ' · ' + esc(u.position) : '') : '가입 승인 대기'}</div></div>
         <div class="row">${!u.approved ? `<button class="btn b-green sm" onclick="setU(${u.id},{approved:true})">승인</button><button class="btn b-red sm" onclick="delU(${u.id},'${esc(u.name)}')">거절</button>`
-        : u.id == ME.id ? '<span class="sub">본인</span>' : `<select style="width:auto;margin:0;padding:7px 10px" onchange="setU(${u.id},{role:this.value})">${['회원','부회장','총무'].map(x => `<option ${u.role==x?'selected':''}>${x}</option>`).join('')}</select>
+        : u.id == ME.id ? '<span class="sub">본인</span>' : `<select style="width:auto;margin:0;padding:7px 10px" onchange="setU(${u.id},{role:this.value})">${['회원','부회장','총무','감독','코치'].map(x => `<option ${u.role==x?'selected':''}>${x}</option>`).join('')}</select>
           <button class="btn b-ghost sm" onclick="more(${u.id},'${esc(u.name)}','${esc(u.position)}')">⋯</button>`}</div></div>`).join(''),
         '') : ''}
     ${boss ? card('🤝 회장 인계', `<div class="hint" style="margin-bottom:8px">새 회장을 선택하면 권한이 넘어가고 나는 일반 회원이 됩니다.</div>

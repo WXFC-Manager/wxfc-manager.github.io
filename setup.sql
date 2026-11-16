@@ -76,7 +76,7 @@ begin
   select m.* into me from sessions s join members m on m.id = s.member_id
    where s.token::text = p_token and m.approved;
   if me.id is null then return jsonb_build_object('err','다시 로그인해 주세요','auth',true); end if;
-  staff := me.role in ('회장','부회장','총무');
+  staff := me.role in ('회장','부회장','총무','감독','코치');
   p_d := coalesce(p_d,'{}');
 
   case p_action
@@ -114,6 +114,7 @@ begin
   when 'paySave' then
     if coalesce(p_d->>'title','')='' or coalesce((p_d->>'amount')::numeric,0) <= 0 then return _err('제목과 금액을 입력하세요'); end if;
     ok := p_d->>'type' = '수입';
+    if not staff then return _err('결제안은 운영진만 올릴 수 있습니다'); end if;
     if ok and me.role not in ('회장','총무') then return _err('수입은 회장·총무만 등록할 수 있습니다'); end if;
     insert into pays(type,title,category,amount,reason,receipts,status,applicant_id,applicant,history,paid_at)
     values(case when ok then '수입' else '지출' end, p_d->>'title', coalesce(p_d->>'category','기타'),
@@ -236,7 +237,7 @@ begin
     if p_d ? 'position' then update members set position=coalesce(p_d->>'position','') where id=xid; end if;
     if p_d ? 'role' then
       if xid = me.id then return _err('본인 역할은 회장 인계로만 바꿀 수 있습니다'); end if;
-      if p_d->>'role' not in ('회장','부회장','총무','회원') then return _err('잘못된 역할'); end if;
+      if p_d->>'role' not in ('회장','부회장','총무','감독','코치','회원') then return _err('잘못된 역할'); end if;
       update members set role=p_d->>'role' where id=xid;
       if p_d->>'role' = '회장' then update members set role='회원' where id=me.id; end if;
       perform _notify(array[xid], '역할 변경', (p_d->>'role')||'(으)로 지정되었습니다', '#/me');

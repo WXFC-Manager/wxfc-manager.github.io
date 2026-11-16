@@ -30,6 +30,13 @@ create table if not exists reqs(
   by_id bigint, by_name text, title text, body text, status text default '접수',
   reply text default '', replied_by text default '', created_at timestamptz default now(), updated_at timestamptz);
 alter table pays add column if not exists skip_vice boolean default false;
+create table if not exists polls(
+  id bigint generated always as identity primary key,
+  meet_id bigint references meets(id) on delete cascade, title text, options jsonb,
+  closed boolean default false, deadline timestamptz, by_id bigint, by_name text, created_at timestamptz default now());
+create table if not exists votes(
+  poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
+  member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
 update pays set status='회장결재' where status='승인대기';
 update pays set status='지급대기' where status='승인';
 
@@ -41,6 +48,8 @@ alter table meets enable row level security;
 alter table notis enable row level security;
 alter table config enable row level security;
 alter table reqs enable row level security;
+alter table polls enable row level security;
+alter table votes enable row level security;
 
 create or replace function _hist(m members, a text, c text) returns jsonb language sql stable as $$
   select jsonb_build_array(jsonb_build_object('who',m.name,'role',m.role,'act',a,'comment',coalesce(c,''),'at',now())) $$;
@@ -73,6 +82,11 @@ begin
   select * into m from members where name = trim(coalesce(p_name,''));
   if m.id is null or m.pw <> crypt(coalesce(p_pw,''), m.pw) then return _err('이름 또는 비밀번호가 틀립니다'); end if;
   if not m.approved then return _err('회장 승인 대기 중입니다'); end if;
+  -- 중복 로그인 방지: 다른 기기의 로그인은 자동 해제
+  if exists(select 1 from sessions where member_id = m.id) then
+    delete from sessions where member_id = m.id;
+    perform _notify(array[m.id], '새 기기에서 로그인됨', '이전 기기는 자동 로그아웃되었습니다. 본인이 아니라면 바로 비밀번호를 바꾸세요', '#/me');
+  end if;
   insert into sessions(member_id) values(m.id) returning token into t;
   return jsonb_build_object('token',t);
 end $$;
@@ -83,7 +97,7 @@ declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; st
 begin
   select m.* into me from sessions s join members m on m.id = s.member_id
    where s.token::text = p_token and m.approved;
-  if me.id is null then return jsonb_build_object('err','다시 로그인해 주세요','auth',true); end if;
+  if me.id is null then return jsonb_build_object('err','다른 기기에서 로그인했거나 로그인이 해제되었습니다. 다시 로그인해 주세요','auth',true); end if;
   staff := me.role in ('회장','부회장','총무','감독','코치');
   p_d := coalesce(p_d,'{}');
 
@@ -108,6 +122,9 @@ begin
           order by mdate desc nulls last, id desc limit 3) t),'[]'::jsonb),
       'recent', coalesce((select jsonb_agg(t) from (select id,title,amount,category,applicant from pays
           where status='지급완료' and type='지출' order by paid_at desc limit 3) t),'[]'::jsonb),
+      'polls', coalesce((select jsonb_agg(t) from (select pl.id, pl.title, pl.deadline,
+          exists(select 1 from votes v where v.poll_id=pl.id and v.member_id=me.id) voted
+          from polls pl where not pl.closed and (pl.deadline is null or pl.deadline > now()) order by pl.id desc limit 5) t),'[]'::jsonb),
       'unread', (select count(*) from notis where to_id=me.id and not read));
 
   when 'pays' then
@@ -172,7 +189,49 @@ begin
     select * into mt from meets where id=(p_d->>'id')::bigint;
     if mt.id is null then return _err('없는 항목입니다'); end if;
     if not staff and mt.status <> '승인' and mt.by_id <> me.id then return _err('아직 확정되지 않은 회의입니다'); end if;
-    return jsonb_build_object('m', to_jsonb(mt));
+    return jsonb_build_object('m', to_jsonb(mt), 'polls', coalesce((select jsonb_agg(t) from (
+      select pl.id, pl.title, pl.closed or (pl.deadline is not null and pl.deadline <= now()) closed,
+        (select count(*) from votes v where v.poll_id=pl.id) n,
+        exists(select 1 from votes v where v.poll_id=pl.id and v.member_id=me.id) voted
+      from polls pl where pl.meet_id=mt.id order by pl.id) t),'[]'::jsonb));
+
+  when 'pollSave' then
+    if not staff then return _err('운영진만 투표를 만들 수 있습니다'); end if;
+    select * into mt from meets where id=(p_d->>'meet_id')::bigint;
+    if mt.status is distinct from '승인' then return _err('확정된 회의에서만 투표를 만들 수 있습니다'); end if;
+    if coalesce(trim(p_d->>'title'),'')='' or jsonb_array_length(coalesce(p_d->'options','[]')) < 2 then
+      return _err('투표 제목과 선택지(2개 이상)를 입력하세요'); end if;
+    insert into polls(meet_id,title,options,deadline,by_id,by_name)
+      values(mt.id, trim(p_d->>'title'), p_d->'options', nullif(p_d->>'deadline','')::timestamptz, me.id, me.name)
+      returning id into xid;
+    perform _notify(_ids(null), '투표 시작', trim(p_d->>'title'), '#/vote/'||xid);
+    return jsonb_build_object('id', xid);
+
+  when 'poll' then
+    return (select jsonb_build_object(
+      'p', to_jsonb(pl) || jsonb_build_object('ended', pl.closed or (pl.deadline is not null and pl.deadline <= now()),
+            'meet_title', (select title from meets where id=pl.meet_id)),
+      'votes', coalesce((select jsonb_agg(jsonb_build_object('name',v.member_name,'choice',v.choice,'at',v.at) order by v.at)
+            from votes v where v.poll_id=pl.id),'[]'::jsonb),
+      'mine', (select choice from votes where poll_id=pl.id and member_id=me.id),
+      'missing', coalesce((select jsonb_agg(m.name order by m.id) from members m where m.approved
+            and not exists(select 1 from votes v where v.poll_id=pl.id and v.member_id=m.id)),'[]'::jsonb))
+      from polls pl where pl.id=(p_d->>'id')::bigint);
+
+  when 'vote' then
+    if not exists(select 1 from polls where id=(p_d->>'id')::bigint and not closed
+        and (deadline is null or deadline > now())) then return _err('마감된 투표입니다'); end if;
+    if (p_d->>'choice')::int < 0 or (p_d->>'choice')::int >= (select jsonb_array_length(options) from polls where id=(p_d->>'id')::bigint)
+      then return _err('잘못된 선택'); end if;
+    insert into votes(poll_id,member_id,member_name,choice) values((p_d->>'id')::bigint, me.id, me.name, (p_d->>'choice')::int)
+      on conflict(poll_id,member_id) do update set choice=excluded.choice, member_name=excluded.member_name, at=now();
+    return jsonb_build_object('ok',true);
+
+  when 'pollClose' then
+    if not staff then return _err('운영진만 마감할 수 있습니다'); end if;
+    update polls set closed=true where id=(p_d->>'id')::bigint returning title into ns;
+    perform _notify(_ids(null), '투표 마감', coalesce(ns,''), '#/vote/'||(p_d->>'id'));
+    return jsonb_build_object('ok',true);
 
   when 'meetSave' then
     if not staff then return _err('회의 안건은 운영진만 올릴 수 있습니다'); end if;

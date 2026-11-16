@@ -109,7 +109,12 @@ const fdt = s => { if(!s) return ''; const d = new Date(s); const p = n => Strin
 const card = (t, body, right='') => `<div class="card"><div class="ct"><span>${t}</span>${right}</div>${body}</div>`;
 const empty = t => `<div class="empty">${t}</div>`;
 const V = h => { $('#app').innerHTML = h; window.scrollTo(0,0) };
-let TOKEN = LS.get('wxfc_t'), ME = null, PAYF = '', loading = false, pending = false;
+// 자동 로그인: 휴대폰에 로그인 정보를 저장 (위챗 브라우저 대비 쿠키에도 저장)
+const TK = {
+  get(){ return LS.get('wxfc_t') || (document.cookie.match(/(?:^|; )wxfc_t=([^;]+)/) || [])[1] || null },
+  set(v){ LS.set('wxfc_t', v); try { document.cookie = 'wxfc_t=' + (v || '') + ';path=/;max-age=' + (v ? 31536000 : 0) + ';SameSite=Lax' } catch(e){} }
+};
+let TOKEN = TK.get(), ME = null, PAYF = '', loading = false, pending = false;
 
 function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2200) }
 const HDR = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY });
@@ -126,7 +131,7 @@ async function api(action, d = {}){
   if(r && r.err){ if(r.auth){ logout(true) } toast(r.err); throw new Error(r.err) }
   return r;
 }
-function logout(silent){ if(!silent && TOKEN) rpc('api',{p_token:TOKEN,p_action:'logout',p_d:{}}).catch(()=>{}); TOKEN = null; ME = null; LS.set('wxfc_t', null); location.hash = '#/'; route() }
+function logout(silent){ if(!silent && TOKEN) rpc('api',{p_token:TOKEN,p_action:'logout',p_d:{}}).catch(()=>{}); TOKEN = null; ME = null; TK.set(null); location.hash = '#/'; route() }
 
 // ───── 파일 업로드 (사진은 자동 압축) ─────
 function shrink(file){
@@ -184,7 +189,7 @@ function loginView(mode = 'login'){
       <label>비밀번호 (4자 이상)</label><input id="lp" type="password" autocomplete="${mode=='login'?'current':'new'}-password">
       ${mode=='reg' ? '<label>비밀번호 확인</label><input id="lp2" type="password">' : ''}
       <button class="btn" id="lb">${mode=='login' ? '로그인' : '가입 신청'}</button>
-      <div class="hint" style="margin-top:12px">${mode=='login' ? '비밀번호를 잊었다면 회장에게 초기화를 요청하세요. <a class="link" href="manual.html">📖 사용 설명서</a>' : '가입 신청 후 회장이 승인하면 로그인할 수 있습니다. 첫 가입자는 자동으로 회장이 됩니다.'}</div>
+      <div class="hint" style="margin-top:12px">${mode=='login' ? '한 번 로그인하면 로그아웃 전까지 자동으로 로그인됩니다. 다른 기기에서 로그인하면 이전 기기는 로그아웃됩니다.<br>비밀번호를 잊었다면 회장에게 초기화를 요청하세요. <a class="link" href="manual.html">📖 사용 설명서</a>' : '가입 신청 후 회장이 승인하면 로그인할 수 있습니다. 첫 가입자는 자동으로 회장이 됩니다.'}</div>
     </div></div>`);
   $('#lb').onclick = async () => {
     const n = $('#ln').value.trim(), p = $('#lp').value;
@@ -194,7 +199,7 @@ function loginView(mode = 'login'){
       if(!r.approved){ toast('가입 신청 완료! 회장 승인 후 로그인하세요'); return loginView('login') }
     }
     const r = await rpc('login', { p_name:n, p_pw:p }); if(r.err) return toast(r.err);
-    TOKEN = r.token; LS.set('wxfc_t', TOKEN); route();
+    TOKEN = r.token; TK.set(TOKEN); route();
   };
 }
 
@@ -205,6 +210,7 @@ async function home(){
       <div class="hl">현재 잔액</div><div class="ht">${yen(h.income - h.spend)}</div>
       <div class="hr"><span>총 수입 ${yen(h.income)}</span><span>총 지출 ${yen(h.spend)}</span></div></div>
     ${h.notice ? card('📢 공지', `<div class="txt">${esc(h.notice)}</div>`) : ''}
+    ${h.polls.length ? card('🗳 진행 중인 투표', h.polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow">${esc(v.title)}${v.deadline ? `<div class="sub">마감 ${fdt(v.deadline)}</div>` : ''}</div>${v.voted ? '<span class="tag t-done">투표 완료</span>' : '<span class="tag t-wait">투표하기 ›</span>'}</a>`).join('')) : ''}
     ${h.todo.length ? card('✅ 내가 처리할 일', h.todo.map(t => `<a class="it" href="#/${t.kind}/${t.id}"><div class="grow">${esc(t.title)}</div>${tag(t.status)}</a>`).join('')) : ''}
     ${card('🗓 최근 확정 회의', h.meets.map(m => `<a class="it" href="#/meet/${m.id}"><div class="grow">${esc(m.title)}<div class="sub">${esc(m.mdate||'')}</div></div><span class="link">보기 ›</span></a>`).join('') || empty('아직 확정된 회의가 없습니다'))}
     ${card('💸 최근 지출', h.recent.map(p => `<a class="it" href="#/pay/${p.id}"><div class="grow">${esc(p.title)}<div class="sub">${esc(p.category)} · ${esc(p.applicant)}</div></div><span class="amt">${yen(p.amount)}</span></a>`).join('') || empty('아직 지출 내역이 없습니다'), '<a class="link" href="#/pays">전체 ›</a>')}`);
@@ -321,7 +327,7 @@ function line(m){
   return [['작성','done',m.by_name], ['부회장', m.skip_vice ? 'skip' : st('부회장')], ['회장', st('회장')]];
 }
 async function meetDetail(id){
-  const m = (await api('meet', { id:+id })).m;
+  const mr = await api('meet', { id:+id }), m = mr.m, polls = mr.polls || [];
   const staff = isStaff();
   const steps = stepsHtml(line(m));
   const canAct = (ME.role=='부회장' && m.status=='부회장검토') || (ME.role=='회장' && m.status=='회장결재');
@@ -331,9 +337,24 @@ async function meetDetail(id){
     ${canAct ? card(`${ME.role} 결재`, `<button class="btn b-green" onclick="meetAct(${m.id},'approve')">승인</button><button class="btn b-red" onclick="meetAct(${m.id},'reject')">반려</button>`) : ''}
     ${card('안건', `<div class="txt">${esc(m.agenda) || '-'}</div>${(m.files||[]).length ? '<div style="margin-top:10px">' + m.files.map(f => fileRow(f)).join('') + '</div>' : ''}`)}
     ${m.status=='승인' ? card('📝 회의록', `<div id="mn"><div class="txt">${esc(m.minutes) || '아직 회의록이 없습니다'}</div>${(m.mfiles||[]).map(f => fileRow(f)).join('')}</div>`, staff ? '<a class="link" id="me">작성·수정</a>' : '') : ''}
+    ${m.status=='승인' ? card('🗳 투표', `${polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow">${esc(v.title)}<div class="sub">${v.n}명 참여</div></div>${v.closed ? '<span class="tag t-no">마감</span>' : v.voted ? '<span class="tag t-done">투표 완료</span>' : '<span class="tag t-wait">투표하기 ›</span>'}</a>`).join('') || '<div class="sub">아직 투표가 없습니다</div>'}
+      ${staff ? '<div id="pf"><button class="btn b-ghost" id="pn">+ 투표 만들기</button></div>' : ''}`) : ''}
     ${card('처리 기록', hist)}
     <button class="btn b-ghost" onclick="share(window._sh)">위챗 단톡방 공유 문구 복사</button>`);
   window._sh = `회의 ${m.status}: ${m.title}`;
+  if($('#pn')) $('#pn').onclick = () => {
+    $('#pf').innerHTML = `<label style="margin-top:10px">투표 제목</label><input id="vt" placeholder="예) 연말 회식 날짜">
+      <label>선택지 (한 줄에 하나씩)</label><textarea id="vo" placeholder="12월 20일(토)&#10;12월 27일(토)&#10;불참"></textarea>
+      <label>마감 시간 (선택)</label><input id="vd" type="datetime-local">
+      <div class="hint">기명 투표입니다. 누가 무엇을 골랐는지 모든 회원에게 보입니다.</div>
+      <button class="btn b-green" id="vs">투표 시작하고 회원에게 알림</button>`;
+    $('#vs').onclick = async e => {
+      const options = $('#vo').value.split('\n').map(x => x.trim()).filter(Boolean);
+      const dv = $('#vd').value; e.target.disabled = true;
+      try { const r = await api('pollSave', { meet_id:m.id, title:$('#vt').value.trim(), options, deadline: dv ? new Date(dv).toISOString() : '' });
+        toast('투표를 시작했습니다'); location.hash = '#/vote/' + r.id } catch(x){ e.target.disabled = false }
+    };
+  };
   if($('#me')) $('#me').onclick = () => {
     const mf = (m.mfiles||[]).slice();
     const draw = () => { $('#mfl').innerHTML = mf.map((f,i) => fileRow(f, `data-i="${i}"`)).join('');
@@ -352,6 +373,31 @@ async function meetAct(id, act){
   else if(!confirm('승인할까요?')) return;
   await api('meetAct', { id, act, comment }); toast('처리 완료'); meetDetail(id);
 }
+
+// ───── 투표 (기명) ─────
+async function votePage(id){
+  const r = await api('poll', { id:+id }), p = r.p;
+  if(!p) { V(empty('없는 투표입니다')); return }
+  const total = r.votes.length, cnt = p.options.map((_, i) => r.votes.filter(v => v.choice == i));
+  V(`<div class="hero"><div class="hs">🗳 기명 투표${p.meet_title ? ' · ' + esc(p.meet_title) : ''}</div>
+      <div class="ht" style="font-size:22px">${esc(p.title)}</div>
+      <div class="hr"><span>${total}명 참여</span><span>${p.ended ? '마감됨' : p.deadline ? '마감 ' + fdt(p.deadline) : '진행 중'}</span></div></div>
+    <div class="card"><div class="ct">${p.ended ? '결과' : r.mine == null ? '하나를 골라 누르세요' : '내 선택 (다시 눌러 바꿀 수 있음)'}</div>
+      ${p.options.map((o, i) => { const n = cnt[i].length, pc = total ? Math.round(n * 100 / total) : 0, me = r.mine == i;
+        return `<div ${p.ended ? '' : `onclick="doVote(${p.id},${i})"`} style="position:relative;overflow:hidden;border-radius:12px;margin-bottom:10px;border:2px solid ${me ? 'var(--green)' : '#E3E8EE'};cursor:pointer">
+          <div style="position:absolute;inset:0;width:${pc}%;background:${me ? '#DFF3E3' : '#EEF3F8'}"></div>
+          <div style="position:relative;display:flex;justify-content:space-between;align-items:center;padding:13px 14px;gap:10px">
+            <b>${me ? '✅ ' : ''}${esc(o)}</b><span class="sub" style="margin:0;white-space:nowrap">${n}명 · ${pc}%</span></div>
+          ${n ? `<div style="position:relative;padding:0 14px 10px;font-size:12px;color:#5F6B7A">${cnt[i].map(v => esc(v.name)).join(', ')}</div>` : ''}</div>` }).join('')}
+      <div class="hint">기명 투표입니다. 누가 무엇을 골랐는지 모든 회원에게 보입니다.</div></div>
+    ${card(`🙋 아직 투표 안 한 사람 (${r.missing.length}명)`, `<div class="chips">${r.missing.map(n => `<span class="chip">${esc(n)}</span>`).join('') || '<span class="sub">모두 투표했습니다 🎉</span>'}</div>`)}
+    ${isStaff() && !p.ended ? `<button class="btn b-red" onclick="closePoll(${p.id})">투표 마감하기</button>` : ''}
+    ${p.meet_id ? `<a class="btn b-ghost" style="text-align:center" href="#/meet/${p.meet_id}">회의로 돌아가기</a>` : ''}
+    <button class="btn" onclick="share(window._sh)">📤 투표 링크 복사 (위챗에 공유)</button>`);
+  window._sh = `🗳 투표해 주세요: ${p.title}${p.deadline ? ' (마감 ' + fdt(p.deadline) + ')' : ''}`;
+}
+async function doVote(id, i){ await api('vote', { id, choice:i }); toast('투표했습니다'); votePage(id) }
+async function closePoll(id){ if(!confirm('투표를 마감할까요? 마감 후에는 바꿀 수 없습니다.')) return; await api('pollClose', { id }); toast('마감했습니다'); votePage(id) }
 
 // ───── 요청사항 ─────
 async function reqsPage(open){
@@ -448,6 +494,7 @@ async function loadMe(){ const r = await api('me'); ME = r.me; setBadge(r.unread
 const ROUTES = [
   [/^#?\/?$/, home, 'home'], [/^#\/pays$/, pays, 'pay'], [/^#\/pay\/new\/(in|out)$/, payNew, 'pay'], [/^#\/pay\/(\d+)$/, payDetail, 'pay'],
   [/^#\/meets$/, meets, 'meet'], [/^#\/meet\/new$/, meetNew, 'meet'], [/^#\/meet\/(\d+)$/, meetDetail, 'meet'],
+  [/^#\/vote\/(\d+)$/, votePage, 'meet'],
   [/^#\/reqs$/, reqsPage, 'req'], [/^#\/req\/(\d+)$/, reqsPage, 'req'],
   [/^#\/org$/, org, 'org'], [/^#\/me$/, mePage, 'me']
 ];

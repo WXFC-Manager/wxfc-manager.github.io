@@ -119,6 +119,8 @@ begin
     return jsonb_build_object(
       'income', coalesce((select sum(amount) from pays where status='지급완료' and type='수입'),0),
       'spend',  coalesce((select sum(amount) from pays where status='지급완료' and type='지출'),0),
+      'month_spend', coalesce((select sum(amount) from pays where status='지급완료' and type='지출'
+          and date_trunc('month', paid_at at time zone 'Asia/Shanghai') = date_trunc('month', now() at time zone 'Asia/Shanghai')),0),
       'notice', (select v->>'text' from config where k='notice'),
       'todo', coalesce((select jsonb_agg(t) from (
           select 'pay' kind, id, title, status from pays
@@ -193,6 +195,27 @@ begin
     insert into attends(match_id,member_id,member_name,status) values((p_d->>'id')::bigint, me.id, me.name, p_d->>'status')
       on conflict(match_id,member_id) do update set status=excluded.status, member_name=excluded.member_name, at=now();
     return jsonb_build_object('ok',true);
+
+  when 'report' then
+    n := coalesce(nullif(p_d->>'year','')::int, extract(year from now() at time zone 'Asia/Shanghai')::int);
+    xid := coalesce(nullif(p_d->>'month','')::int, 0);
+    return (with d as (select id, type, title, category, amount, applicant, (paid_at at time zone 'Asia/Shanghai') t
+                         from pays where status='지급완료' and paid_at is not null),
+      r as (select make_timestamp(n, greatest(xid,1)::int, 1, 0, 0, 0) s,
+              case when xid > 0 then make_timestamp(n, xid::int, 1, 0, 0, 0) + interval '1 month' else make_timestamp(n+1, 1, 1, 0, 0, 0) end e)
+    select jsonb_build_object('year', n, 'month', xid,
+      'carry',  coalesce((select sum(case when d.type='수입' then d.amount else -d.amount end) from d, r where d.t < r.s),0),
+      'income', coalesce((select sum(d.amount) from d, r where d.type='수입' and d.t >= r.s and d.t < r.e),0),
+      'spend',  coalesce((select sum(d.amount) from d, r where d.type='지출' and d.t >= r.s and d.t < r.e),0),
+      'cats', coalesce((select jsonb_agg(x order by x.amt desc) from (select d.category cat, sum(d.amount) amt from d, r
+                where d.type='지출' and d.t >= r.s and d.t < r.e group by d.category) x),'[]'::jsonb),
+      'months', (select jsonb_agg(jsonb_build_object('m', g,
+                  'in',  coalesce((select sum(d.amount) from d where d.type='수입' and extract(year from d.t)=n and extract(month from d.t)=g),0),
+                  'out', coalesce((select sum(d.amount) from d where d.type='지출' and extract(year from d.t)=n and extract(month from d.t)=g),0)) order by g)
+                 from generate_series(1,12) g),
+      'list', coalesce((select jsonb_agg(x order by x.t) from (select d.id, d.type, d.title, d.category, d.amount, d.applicant, d.t
+                from d, r where d.t >= r.s and d.t < r.e) x),'[]'::jsonb),
+      'years', coalesce((select jsonb_agg(distinct extract(year from d.t)::int) from d),'[]'::jsonb)));
 
   when 'pays' then
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (

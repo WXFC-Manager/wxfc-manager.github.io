@@ -159,26 +159,52 @@ begin
           (select status from attends a where a.match_id=mt2.id and a.member_id=me.id) mine
           from matches mt2 where mt2.starts_at > now() - interval '3 hours' order by mt2.starts_at limit 1) t),
       'dues_amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
-      'mydue', (select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY-MM')),
+      'mydue', coalesce((select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY')),
+                        (select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY-MM'))),
       'unread', (select count(*) from notis where to_id=me.id and not read));
 
   when 'dues' then
     ns := coalesce(nullif(p_d->>'ym',''), to_char(now() at time zone 'Asia/Shanghai','YYYY-MM'));
-    return jsonb_build_object('ym', ns, 'amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
-      'list', coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,'status',coalesce(d.status,'미납'),
-          'amount',d.amount,'at',d.paid_at,'by',d.by_name) order by m.id)
-        from members m left join dues d on d.member_id=m.id and d.ym=ns where m.approved),'[]'::jsonb));
+    return jsonb_build_object('ym', ns,
+      'amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
+      'year_amount', coalesce((select (v->>'year_amount')::numeric from config where k='dues'),0),
+      'year_deadline', (select v->>'year_deadline' from config where k='dues'),
+      'list', coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,
+          'status', case when y.member_id is not null then '연납' else coalesce(d.status,'미납') end,
+          'amount', case when y.member_id is not null then y.amount else d.amount end,
+          'at', coalesce(y.paid_at, d.paid_at), 'by', coalesce(y.by_name, d.by_name)) order by m.id)
+        from members m
+        left join dues d on d.member_id=m.id and d.ym=ns
+        left join dues y on y.member_id=m.id and y.ym=left(ns,4) and y.status='연납'
+        where m.approved),'[]'::jsonb));
 
   when 'duesAmount' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;
-    insert into config values('dues', jsonb_build_object('amount', coalesce(nullif(p_d->>'amount','')::numeric,0)))
+    insert into config values('dues', jsonb_build_object(
+        'amount', coalesce(nullif(p_d->>'amount','')::numeric,0),
+        'year_amount', coalesce(nullif(p_d->>'year_amount','')::numeric,0),
+        'year_deadline', coalesce(p_d->>'year_deadline','')))
       on conflict(k) do update set v=excluded.v;
     return jsonb_build_object('ok',true);
 
   when 'duesSet' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 납부 체크를 할 수 있습니다'); end if;
     ns := p_d->>'ym'; xid := (p_d->>'id')::bigint;
-    if ns !~ '^\d{4}-\d{2}$' or p_d->>'status' not in ('미납','납부','면제') then return _err('잘못된 선택'); end if;
+    if ns !~ '^\d{4}-\d{2}$' or p_d->>'status' not in ('미납','납부','면제','연납') then return _err('잘못된 선택'); end if;
+    if p_d->>'status' = '연납' then
+      amt := coalesce((select (v->>'year_amount')::numeric from config where k='dues'), 0);
+      if amt <= 0 then return _err('먼저 연납 금액을 정해 주세요'); end if;
+      if exists(select 1 from dues where member_id=xid and ym=left(ns,4)) then return jsonb_build_object('ok',true); end if;
+      insert into pays(type,title,category,amount,reason,status,applicant_id,applicant,history,paid_at)
+        values('수입', left(ns,4)||'년 연회비(일시납) · '||(select name from members where id=xid),
+          '회비', amt, '회비 납부 현황에서 자동 등록 (연납)', '지급완료', me.id, me.name, _hist(me,'연회비 납부 체크',''), now())
+        returning id into pid;
+      insert into dues(member_id,ym,status,amount,paid_at,by_name,pay_id) values(xid, left(ns,4), '연납', amt, now(), me.name, pid);
+      return jsonb_build_object('ok',true);
+    end if;
+    -- 연납을 취소하고 월별로 바꾸는 경우: 연납 기록과 자동 수입 삭제
+    delete from pays where id = (select pay_id from dues where member_id=xid and ym=left(ns,4));
+    delete from dues where member_id=xid and ym=left(ns,4);
     amt := coalesce(nullif(p_d->>'amount','')::numeric, (select (v->>'amount')::numeric from config where k='dues'), 0);
     if p_d->>'status' = '납부' and amt <= 0 then return _err('먼저 월 회비 금액을 정해 주세요'); end if;
     -- 이전에 자동 등록된 수입은 지우고 다시 계산
@@ -203,7 +229,7 @@ begin
     if me.role not in ('회장','총무') then return _err('회장·총무만 알림을 보낼 수 있습니다'); end if;
     ns := p_d->>'ym';
     perform _notify(array(select m.id from members m where m.approved
-        and not exists(select 1 from dues d where d.member_id=m.id and d.ym=ns)),
+        and not exists(select 1 from dues d where d.member_id=m.id and (d.ym=ns or d.ym=left(ns,4)))),
       '회비 납부 안내', split_part(ns,'-',1)||'년 '||split_part(ns,'-',2)::int||'월 회비가 아직 납부되지 않았습니다', '#/dues');
     return jsonb_build_object('ok',true);
 

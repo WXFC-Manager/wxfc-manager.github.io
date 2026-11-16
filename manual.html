@@ -51,6 +51,7 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   <a href="#s2b">2-1. 경기 일정 (캘린더)</a>
   <a href="#s3">3. 결제 (회장 → 부회장 → 총무)</a>
   <a href="#s3b">3-1. 월별·연간 결산</a>
+  <a href="#s3c">3-2. 회비 납부 현황</a>
   <a href="#s4">4. 회의 안건과 회의록</a>
   <a href="#s4b">4-1. 투표 (기명)</a>
   <a href="#s5">5. 요청사항 (일반 회원)</a>
@@ -190,6 +191,21 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   <div class="tip">결산은 <b>지급완료된 건</b>만, <b>지급한 날짜</b> 기준으로 계산합니다.</div>
 </section>
 
+<section id="s3c">
+  <h2>3-2. 회비 납부 현황</h2>
+  <span class="who">보기: 모든 회원</span> <span class="who g">체크: 회장·총무</span>
+  <p>회원별로 이번 달 회비를 냈는지 한눈에 봅니다. 홈 화면 맨 위에 <b>내 회비 상태</b>(납부 완료 / 미납)도 보입니다.</p>
+  <ol>
+    <li><b>[결제]</b> → <b>[💰 회비 납부 현황]</b> (또는 홈의 '이번 달 회비' 칸)</li>
+    <li><b>‹ ›</b>로 달을 고릅니다.</li>
+    <li><span class="who">회장·총무</span> 처음 한 번 <b>월 회비 금액</b>을 적고 <b>[저장]</b>.</li>
+    <li><span class="who">회장·총무</span> 회비를 받으면 그 회원 옆 칸을 <b>'납부'</b>로 바꿉니다. 사정이 있는 회원은 <b>'면제'</b>.</li>
+    <li><b>[🔔 미납자에게 알림 보내기]</b>로 안 낸 사람에게만 알림, <b>[📤 납부 현황 복사]</b>로 단톡방 공유.</li>
+  </ol>
+  <figure><img src="manual/26-dues.jpg" alt="회비 납부 현황" loading="lazy"><figcaption>회비 납부 현황 (총무 화면)</figcaption></figure>
+  <div class="tip">'납부'로 바꾸면 <b>수입(회비)으로 자동 등록</b>되어 잔액과 결산에 바로 반영됩니다. 실수로 바꿨으면 '미납'으로 되돌리면 자동으로 빠집니다. 그래서 회비는 <b>[+ 수입 등록]으로 따로 넣지 마세요</b> (두 번 계산됩니다).</div>
+</section>
+
 <section id="s4">
   <h2>4. 회의 안건과 회의록</h2>
   <span class="who">보기: 모든 회원 (확정된 회의만)</span> <span class="who g">올리기: 운영진</span>
@@ -271,6 +287,8 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
     <tr><th>직책 이름</th><td><b>[⋯]</b> → 1번 (예: 경기이사)</td></tr>
     <tr><th>비밀번호 초기화</th><td><b>[⋯]</b> → 2번 → 새 비밀번호를 정해서 본인에게 알려 주기</td></tr>
     <tr><th>회원 삭제</th><td><b>[⋯]</b> → 3번 (탈퇴한 회원)</td></tr>
+    <tr><th>💾 전체 백업</th><td>[내정보] → <b>[💾 전체 백업 받기]</b> → 휴대폰에 파일 저장. <b>한 달에 한 번</b> 받아서 위챗 '파일 전송 도우미'나 클라우드에 보관 (위챗 안에서 안 되면 브라우저로 열기)</td></tr>
+    <tr><th>저장 공간</th><td>같은 칸에 <b>사용량 / 1024MB</b>가 보입니다. 80%를 넘으면 빨간색으로 알려 줍니다</td></tr>
     <tr><th>홈 공지</th><td>같은 화면의 <b>홈 공지</b> 칸에 쓰고 <b>[공지 저장]</b></td></tr>
   </table>
   <h3>권한 정리</h3>
@@ -326,13 +344,14 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
     <tr><th>증상</th><th>해결</th></tr>
     <tr><td>'서버가 응답하지 않습니다' / 계속 '불러오는 중'</td><td>사이트 관리자가 <b>supabase.com/dashboard</b> → <b>wxfc</b> 프로젝트 → <b>'Paused'</b>라고 되어 있으면 <b>[Restore]</b> 버튼. 몇 분 뒤 다시 접속.</td></tr>
     <tr><td>갑자기 로그아웃됨</td><td>다른 기기(또는 위챗↔브라우저)에서 로그인하면 이전 쪽은 로그아웃됩니다. 본인이 아니라면 비밀번호를 바꾸세요.</td></tr>
+    <tr><td>'5번 틀려 잠겼습니다'</td><td>보안을 위해 10분간 잠깁니다. 10분 뒤 다시 시도하거나, 비밀번호가 기억나지 않으면 회장에게 초기화를 요청하세요.</td></tr>
     <tr><td>로그인이 안 됨</td><td>이름은 가입할 때와 똑같이(띄어쓰기 포함). 비밀번호를 잊었으면 회장에게 초기화 요청.</td></tr>
     <tr><td>'승인 대기 중입니다'</td><td>회장이 아직 가입을 승인하지 않았습니다. 회장에게 알려 주세요.</td></tr>
     <tr><td>사진·파일이 안 올라감</td><td>파일 하나가 20MB를 넘으면 안 됩니다. 와이파이에서 다시 시도.</td></tr>
     <tr><td>위챗 안에서 파일 저장이 안 됨</td><td>오른쪽 위 <b>···</b> → <b>'브라우저로 열기'</b> 후 다시 시도.</td></tr>
     <tr><td>사이트가 아예 안 열림</td><td>잠시 후 다시 시도. 계속 안 되면 VPN을 켜거나 끄고 시도.</td></tr>
   </table>
-  <div class="tip">💾 <b>백업:</b> [내정보] → <b>[결제 내역 엑셀(CSV) 내려받기]</b>로 가끔 저장해 두면 좋습니다.</div>
+  <div class="tip">💾 <b>백업:</b> 회장은 [내정보] → <b>[💾 전체 백업 받기]</b>로 한 달에 한 번 저장해 두세요. 문제가 생기면 이 파일로 복구할 수 있습니다.</div>
   <div class="tip">🛠 서버를 직접 관리하거나 재시작할 일은 없습니다. 3일마다 자동으로 깨워 주는 기능이 설치되어 있습니다.</div>
 </section>
 

@@ -34,6 +34,11 @@ create table if not exists polls(
   id bigint generated always as identity primary key,
   meet_id bigint references meets(id) on delete cascade, title text, options jsonb,
   closed boolean default false, deadline timestamptz, by_id bigint, by_name text, created_at timestamptz default now());
+alter table members add column if not exists fail_count int default 0;
+alter table members add column if not exists lock_until timestamptz;
+create table if not exists dues(
+  member_id bigint references members(id) on delete cascade, ym text, status text, amount numeric,
+  paid_at timestamptz, by_name text, pay_id bigint, primary key(member_id, ym));
 create table if not exists matches(
   id bigint generated always as identity primary key,
   title text, opponent text default '', starts_at timestamptz, venue text default '', address text default '', map_url text default '',
@@ -58,6 +63,7 @@ alter table config enable row level security;
 alter table reqs enable row level security;
 alter table polls enable row level security;
 alter table votes enable row level security;
+alter table dues enable row level security;
 alter table matches enable row level security;
 alter table attends enable row level security;
 
@@ -90,7 +96,18 @@ language plpgsql security definer set search_path=public, extensions as $$
 declare m members; t uuid;
 begin
   select * into m from members where name = trim(coalesce(p_name,''));
-  if m.id is null or m.pw <> crypt(coalesce(p_pw,''), m.pw) then return _err('이름 또는 비밀번호가 틀립니다'); end if;
+  if m.id is null then return _err('이름 또는 비밀번호가 틀립니다'); end if;
+  -- 로그인 보호: 5번 틀리면 10분 잠금
+  if m.lock_until is not null and m.lock_until > now() then
+    return _err('비밀번호를 5번 틀려 잠겼습니다. '||ceil(extract(epoch from m.lock_until - now())/60)::int||'분 뒤에 다시 시도하세요');
+  end if;
+  if m.pw <> crypt(coalesce(p_pw,''), m.pw) then
+    update members set fail_count = case when coalesce(fail_count,0) + 1 >= 5 then 0 else coalesce(fail_count,0) + 1 end,
+      lock_until = case when coalesce(fail_count,0) + 1 >= 5 then now() + interval '10 minutes' else lock_until end where id = m.id;
+    if coalesce(m.fail_count,0) + 1 >= 5 then return _err('비밀번호를 5번 틀려 10분간 잠겼습니다'); end if;
+    return _err('이름 또는 비밀번호가 틀립니다 ('||(coalesce(m.fail_count,0)+1)||'/5)');
+  end if;
+  update members set fail_count = 0, lock_until = null where id = m.id;
   if not m.approved then return _err('회장 승인 대기 중입니다'); end if;
   -- 중복 로그인 방지: 다른 기기의 로그인은 자동 해제
   if exists(select 1 from sessions where member_id = m.id) then
@@ -103,7 +120,7 @@ end $$;
 
 create or replace function api(p_token text, p_action text, p_d jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
-declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean;
+declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean; pid bigint; amt numeric;
 begin
   select m.* into me from sessions s join members m on m.id = s.member_id
    where s.token::text = p_token and m.approved;
@@ -141,7 +158,68 @@ begin
           (select count(*) from attends a where a.match_id=mt2.id and a.status='참석') yes,
           (select status from attends a where a.match_id=mt2.id and a.member_id=me.id) mine
           from matches mt2 where mt2.starts_at > now() - interval '3 hours' order by mt2.starts_at limit 1) t),
+      'dues_amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
+      'mydue', (select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY-MM')),
       'unread', (select count(*) from notis where to_id=me.id and not read));
+
+  when 'dues' then
+    ns := coalesce(nullif(p_d->>'ym',''), to_char(now() at time zone 'Asia/Shanghai','YYYY-MM'));
+    return jsonb_build_object('ym', ns, 'amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
+      'list', coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,'status',coalesce(d.status,'미납'),
+          'amount',d.amount,'at',d.paid_at,'by',d.by_name) order by m.id)
+        from members m left join dues d on d.member_id=m.id and d.ym=ns where m.approved),'[]'::jsonb));
+
+  when 'duesAmount' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;
+    insert into config values('dues', jsonb_build_object('amount', coalesce(nullif(p_d->>'amount','')::numeric,0)))
+      on conflict(k) do update set v=excluded.v;
+    return jsonb_build_object('ok',true);
+
+  when 'duesSet' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 납부 체크를 할 수 있습니다'); end if;
+    ns := p_d->>'ym'; xid := (p_d->>'id')::bigint;
+    if ns !~ '^\d{4}-\d{2}$' or p_d->>'status' not in ('미납','납부','면제') then return _err('잘못된 선택'); end if;
+    amt := coalesce(nullif(p_d->>'amount','')::numeric, (select (v->>'amount')::numeric from config where k='dues'), 0);
+    if p_d->>'status' = '납부' and amt <= 0 then return _err('먼저 월 회비 금액을 정해 주세요'); end if;
+    -- 이전에 자동 등록된 수입은 지우고 다시 계산
+    delete from pays where id = (select pay_id from dues where member_id=xid and ym=ns);
+    if p_d->>'status' = '미납' then
+      delete from dues where member_id=xid and ym=ns;
+    else
+      insert into dues(member_id,ym,status,amount,paid_at,by_name,pay_id)
+        values(xid, ns, p_d->>'status', case when p_d->>'status'='납부' then amt end, now(), me.name, null)
+        on conflict(member_id,ym) do update set status=excluded.status, amount=excluded.amount, paid_at=now(), by_name=me.name, pay_id=null;
+      if p_d->>'status' = '납부' then
+        insert into pays(type,title,category,amount,reason,status,applicant_id,applicant,history,paid_at)
+          values('수입', split_part(ns,'-',1)||'년 '||split_part(ns,'-',2)::int||'월 회비 · '||(select name from members where id=xid),
+            '회비', amt, '회비 납부 현황에서 자동 등록', '지급완료', me.id, me.name, _hist(me,'회비 납부 체크',''), now())
+          returning id into pid;
+        update dues set pay_id=pid where member_id=xid and ym=ns;
+      end if;
+    end if;
+    return jsonb_build_object('ok',true);
+
+  when 'duesRemind' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 알림을 보낼 수 있습니다'); end if;
+    ns := p_d->>'ym';
+    perform _notify(array(select m.id from members m where m.approved
+        and not exists(select 1 from dues d where d.member_id=m.id and d.ym=ns)),
+      '회비 납부 안내', split_part(ns,'-',1)||'년 '||split_part(ns,'-',2)::int||'월 회비가 아직 납부되지 않았습니다', '#/dues');
+    return jsonb_build_object('ok',true);
+
+  when 'backup' then
+    if me.role <> '회장' then return _err('회장만 백업할 수 있습니다'); end if;
+    return jsonb_build_object('app','WXFC','version',1,'at',now(),
+      'members', (select coalesce(jsonb_agg(to_jsonb(x) - 'pw' order by x.id),'[]'::jsonb) from members x),
+      'pays',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from pays x),
+      'meets',   (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from meets x),
+      'polls',   (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from polls x),
+      'votes',   (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from votes x),
+      'matches', (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from matches x),
+      'attends', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from attends x),
+      'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
+      'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
+      'config',  (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from config x));
 
   when 'matches' then
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
@@ -390,7 +468,8 @@ begin
       'notice', (select v->>'text' from config where k='notice'),
       'users', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
           select id,name,role,position,approved from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
-      'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end);
+      'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end,
+      'storage', case when me.role='회장' then (select coalesce(sum((o.metadata->>'size')::bigint),0) from storage.objects o where o.bucket_id='files') end);
 
   when 'readAll' then
     update notis set read=true where to_id=me.id and not read;

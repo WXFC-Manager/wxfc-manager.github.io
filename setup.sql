@@ -173,7 +173,7 @@ begin
       values(trim(p_d->>'title'), coalesce(p_d->>'opponent',''), (p_d->>'starts_at')::timestamptz, coalesce(p_d->>'venue',''),
         coalesce(p_d->>'address',''), coalesce(p_d->>'map_url',''), coalesce(p_d->>'format','11인제'), coalesce(nullif(p_d->>'need','')::int,11),
         coalesce(p_d->>'memo',''), nullif(p_d->>'deadline','')::timestamptz, me.id, me.name) returning id into xid;
-      perform _notify(_ids(null), '경기 일정 등록 · 출석 체크', trim(p_d->>'title'), '#/match/'||xid);
+      perform _notify(_ids(null), '경기 일정 등록', trim(p_d->>'title'), '#/match/'||xid);
     else
       update matches set title=trim(p_d->>'title'), opponent=coalesce(p_d->>'opponent',''), starts_at=(p_d->>'starts_at')::timestamptz,
         venue=coalesce(p_d->>'venue',''), address=coalesce(p_d->>'address',''), map_url=coalesce(p_d->>'map_url',''),

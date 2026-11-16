@@ -34,6 +34,14 @@ create table if not exists polls(
   id bigint generated always as identity primary key,
   meet_id bigint references meets(id) on delete cascade, title text, options jsonb,
   closed boolean default false, deadline timestamptz, by_id bigint, by_name text, created_at timestamptz default now());
+create table if not exists matches(
+  id bigint generated always as identity primary key,
+  title text, opponent text default '', starts_at timestamptz, venue text default '', address text default '', map_url text default '',
+  format text default '11인제', need int default 11, memo text default '', deadline timestamptz,
+  by_id bigint, by_name text, created_at timestamptz default now());
+create table if not exists attends(
+  match_id bigint references matches(id) on delete cascade, member_id bigint references members(id) on delete cascade,
+  member_name text, status text, at timestamptz default now(), primary key(match_id, member_id));
 create table if not exists votes(
   poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
@@ -50,6 +58,8 @@ alter table config enable row level security;
 alter table reqs enable row level security;
 alter table polls enable row level security;
 alter table votes enable row level security;
+alter table matches enable row level security;
+alter table attends enable row level security;
 
 create or replace function _hist(m members, a text, c text) returns jsonb language sql stable as $$
   select jsonb_build_array(jsonb_build_object('who',m.name,'role',m.role,'act',a,'comment',coalesce(c,''),'at',now())) $$;
@@ -125,7 +135,64 @@ begin
       'polls', coalesce((select jsonb_agg(t) from (select pl.id, pl.title, pl.deadline,
           exists(select 1 from votes v where v.poll_id=pl.id and v.member_id=me.id) voted
           from polls pl where not pl.closed and (pl.deadline is null or pl.deadline > now()) order by pl.id desc limit 5) t),'[]'::jsonb),
+      'next', (select to_jsonb(t) from (select mt2.id, mt2.title, mt2.opponent, mt2.starts_at, mt2.venue, mt2.format, mt2.need,
+          (select count(*) from attends a where a.match_id=mt2.id and a.status='참석') yes,
+          (select status from attends a where a.match_id=mt2.id and a.member_id=me.id) mine
+          from matches mt2 where mt2.starts_at > now() - interval '3 hours' order by mt2.starts_at limit 1) t),
       'unread', (select count(*) from notis where to_id=me.id and not read));
+
+  when 'matches' then
+    return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
+      select x.id, x.title, x.opponent, x.starts_at, x.venue, x.format, x.need,
+        x.starts_at < now() - interval '3 hours' past,
+        (select count(*) from attends a where a.match_id=x.id and a.status='참석') yes,
+        (select status from attends a where a.match_id=x.id and a.member_id=me.id) mine
+      from matches x order by (x.starts_at < now() - interval '3 hours'), 
+        case when x.starts_at >= now() - interval '3 hours' then x.starts_at end asc, x.starts_at desc limit 200) t),'[]'::jsonb),
+      'venues', coalesce((select jsonb_agg(t) from (select distinct on (venue) venue, address, map_url from matches
+        where venue <> '' order by venue, id desc) t),'[]'::jsonb));
+
+  when 'match' then
+    return (select jsonb_build_object(
+      'm', to_jsonb(x) || jsonb_build_object('open', now() < coalesce(x.deadline, x.starts_at)),
+      'att', coalesce((select jsonb_agg(jsonb_build_object('name',a.member_name,'status',a.status) order by a.at)
+             from attends a where a.match_id=x.id),'[]'::jsonb),
+      'mine', (select status from attends where match_id=x.id and member_id=me.id),
+      'missing', coalesce((select jsonb_agg(m.name order by m.id) from members m where m.approved
+             and not exists(select 1 from attends a where a.match_id=x.id and a.member_id=m.id)),'[]'::jsonb))
+      from matches x where x.id=(p_d->>'id')::bigint);
+
+  when 'matchSave' then
+    if not staff then return _err('운영진만 경기를 등록할 수 있습니다'); end if;
+    if coalesce(trim(p_d->>'title'),'')='' or coalesce(p_d->>'starts_at','')='' then return _err('경기 이름과 날짜·시간을 입력하세요'); end if;
+    xid := nullif(p_d->>'id','')::bigint;
+    if xid is null then
+      insert into matches(title,opponent,starts_at,venue,address,map_url,format,need,memo,deadline,by_id,by_name)
+      values(trim(p_d->>'title'), coalesce(p_d->>'opponent',''), (p_d->>'starts_at')::timestamptz, coalesce(p_d->>'venue',''),
+        coalesce(p_d->>'address',''), coalesce(p_d->>'map_url',''), coalesce(p_d->>'format','11인제'), coalesce(nullif(p_d->>'need','')::int,11),
+        coalesce(p_d->>'memo',''), nullif(p_d->>'deadline','')::timestamptz, me.id, me.name) returning id into xid;
+      perform _notify(_ids(null), '경기 일정 등록 · 출석 체크', trim(p_d->>'title'), '#/match/'||xid);
+    else
+      update matches set title=trim(p_d->>'title'), opponent=coalesce(p_d->>'opponent',''), starts_at=(p_d->>'starts_at')::timestamptz,
+        venue=coalesce(p_d->>'venue',''), address=coalesce(p_d->>'address',''), map_url=coalesce(p_d->>'map_url',''),
+        format=coalesce(p_d->>'format','11인제'), need=coalesce(nullif(p_d->>'need','')::int,11), memo=coalesce(p_d->>'memo',''),
+        deadline=nullif(p_d->>'deadline','')::timestamptz where id=xid;
+      perform _notify(array(select member_id from attends where match_id=xid), '경기 정보 변경', trim(p_d->>'title'), '#/match/'||xid);
+    end if;
+    return jsonb_build_object('id', xid);
+
+  when 'matchDel' then
+    if not staff then return _err('운영진만 삭제할 수 있습니다'); end if;
+    delete from matches where id=(p_d->>'id')::bigint;
+    return jsonb_build_object('ok',true);
+
+  when 'attend' then
+    if p_d->>'status' not in ('참석','불참','미정') then return _err('잘못된 선택'); end if;
+    if not exists(select 1 from matches where id=(p_d->>'id')::bigint and now() < coalesce(deadline, starts_at))
+      then return _err('출석 체크가 마감되었습니다'); end if;
+    insert into attends(match_id,member_id,member_name,status) values((p_d->>'id')::bigint, me.id, me.name, p_d->>'status')
+      on conflict(match_id,member_id) do update set status=excluded.status, member_name=excluded.member_name, at=now();
+    return jsonb_build_object('ok',true);
 
   when 'pays' then
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (

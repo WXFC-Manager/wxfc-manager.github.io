@@ -82,10 +82,11 @@ nav a.on{color:var(--navy);font-weight:700}nav a.on b{filter:none;opacity:1}
 <div id="app"></div>
 <nav id="nav" style="display:none"><div class="in">
   <a href="#/" data-t="home"><b>🏠</b>홈</a>
+  <a href="#/matches" data-t="match"><b>⚽</b>경기</a>
   <a href="#/pays" data-t="pay"><b>💳</b>결제</a>
   <a href="#/meets" data-t="meet"><b>🗓</b>회의</a>
   <a href="#/reqs" data-t="req"><b>💬</b>요청</a>
-  <a href="#/org" data-t="org"><b>👥</b>조직·회칙</a>
+  <a href="#/org" data-t="org"><b>👥</b>조직</a>
   <a href="#/me" data-t="me"><b>🔔</b>내정보<span class="badge" id="badge" style="display:none"></span></a>
 </div></nav>
 <div id="toast"></div>
@@ -100,7 +101,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const yen = n => '¥' + Number(n || 0).toLocaleString();
 const LS = { get(k){ try { return localStorage.getItem(k) } catch(e){ return null } },
              set(k,v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v) } catch(e){} } };
-const CLS = { 부회장검토:'wait', 회장결재:'wait', 부회장결재:'wait', 지급대기:'ok', 승인:'ok', 지급완료:'done', 반려:'no', 접수:'wait', 처리중:'ok', 완료:'done' };
+const CLS = { 참석:'done', 불참:'no', 미정:'wait', 부회장검토:'wait', 회장결재:'wait', 부회장결재:'wait', 지급대기:'ok', 승인:'ok', 지급완료:'done', 반려:'no', 접수:'wait', 처리중:'ok', 완료:'done' };
 const STAFF = ['회장','부회장','총무','감독','코치'];
 const isStaff = () => ME && STAFF.includes(ME.role);
 const tag = s => `<span class="tag t-${CLS[s]||'wait'}">${esc(s)}</span>`;
@@ -210,6 +211,10 @@ async function home(){
       <div class="hl">현재 잔액</div><div class="ht">${yen(h.income - h.spend)}</div>
       <div class="hr"><span>총 수입 ${yen(h.income)}</span><span>총 지출 ${yen(h.spend)}</span></div></div>
     ${h.notice ? card('📢 공지', `<div class="txt">${esc(h.notice)}</div>`) : ''}
+    ${h.next ? card('⚽ 다음 경기', `<a class="it" href="#/match/${h.next.id}"><div class="grow"><b>${esc(h.next.title)}${h.next.opponent ? ' vs ' + esc(h.next.opponent) : ''}</b>
+        <div class="sub">${fdt(h.next.starts_at)} · ${esc(h.next.venue || '구장 미정')} · ${esc(h.next.format)}</div>
+        <div class="sub">참석 <b style="color:${h.next.yes >= h.next.need ? '#2E7D32' : '#B3261E'}">${h.next.yes}</b> / 필요 ${h.next.need}명</div></div>
+        ${h.next.mine ? tag(h.next.mine) : '<span class="tag t-wait">출석 체크 ›</span>'}</a>`) : ''}
     ${h.polls.length ? card('🗳 진행 중인 투표', h.polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow">${esc(v.title)}${v.deadline ? `<div class="sub">마감 ${fdt(v.deadline)}</div>` : ''}</div>${v.voted ? '<span class="tag t-done">투표 완료</span>' : '<span class="tag t-wait">투표하기 ›</span>'}</a>`).join('')) : ''}
     ${h.todo.length ? card('✅ 내가 처리할 일', h.todo.map(t => `<a class="it" href="#/${t.kind}/${t.id}"><div class="grow">${esc(t.title)}</div>${tag(t.status)}</a>`).join('')) : ''}
     ${card('🗓 최근 확정 회의', h.meets.map(m => `<a class="it" href="#/meet/${m.id}"><div class="grow">${esc(m.title)}<div class="sub">${esc(m.mdate||'')}</div></div><span class="link">보기 ›</span></a>`).join('') || empty('아직 확정된 회의가 없습니다'))}
@@ -374,6 +379,81 @@ async function meetAct(id, act){
   await api('meetAct', { id, act, comment }); toast('처리 완료'); meetDetail(id);
 }
 
+// ───── 경기 일정 · 출석 체크 ─────
+const FORMATS = [['11인제',11],['9인제',9],['8인제',8],['7인제',7],['6인제',6],['5인제 (풋살)',5],['기타',0]];
+const WD = ['일','월','화','수','목','금','토'];
+const mapUrl = m => m.map_url || `https://uri.amap.com/search?keyword=${encodeURIComponent((m.venue + ' ' + (m.address||'')).trim())}&src=wxfc&callnative=1`;
+const dateBox = s => { const d = new Date(s); return `<div class="date"><div class="dm">${d.getMonth()+1}월 (${WD[d.getDay()]})</div><div class="dd">${d.getDate()}</div></div>` };
+const hm = s => { const d = new Date(s); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') };
+async function matchesPage(){
+  const r = await api('matches'), up = r.list.filter(m => !m.past), past = r.list.filter(m => m.past);
+  const row = m => `<a class="card" style="display:flex;gap:12px;align-items:center" href="#/match/${m.id}">${dateBox(m.starts_at)}
+      <div class="grow"><div style="font-weight:700">${esc(m.title)}${m.opponent ? ' vs ' + esc(m.opponent) : ''}</div>
+      <div class="sub">${hm(m.starts_at)} · ${esc(m.venue || '구장 미정')} · ${esc(m.format)}</div>
+      <div class="sub">참석 <b style="color:${m.yes >= m.need ? '#2E7D32' : '#B3261E'}">${m.yes}</b> / ${m.need}명</div></div>
+      ${m.mine ? tag(m.mine) : m.past ? '' : '<span class="tag t-wait">체크 ›</span>'}</a>`;
+  V(`${up.map(row).join('') || empty('예정된 경기가 없습니다')}
+    ${past.length ? `<div class="ct" style="margin:20px 4px 10px;color:#7A8694">지난 경기</div>${past.map(row).join('')}` : ''}
+    ${isStaff() ? '<div class="fabs"><a class="fab" href="#/match/new">+ 경기 등록</a></div>' : ''}`);
+}
+async function matchForm(id){
+  if(!isStaff()) { toast('운영진만 경기를 등록할 수 있습니다'); return location.replace('#/matches') }
+  const vs = (await api('matches')).venues;
+  const m = id ? (await api('match', { id:+id })).m : { title:'정기 경기', format:'11인제', need:11 };
+  const loc = s => { if(!s) return ''; const d = new Date(s); return new Date(d - d.getTimezoneOffset()*6e4).toISOString().slice(0,16) };
+  V(`<div class="card"><div class="ct">${id ? '✏️ 경기 수정' : '⚽ 경기 등록'}</div>
+    <label>경기 이름</label><input id="gt" value="${esc(m.title)}" placeholder="예) 정기 경기, 친선전">
+    <label>상대팀 (선택)</label><input id="go" value="${esc(m.opponent||'')}" placeholder="예) ○○FC">
+    <label>날짜·시작 시간</label><input id="gs" type="datetime-local" value="${loc(m.starts_at)}">
+    <label>경기 방식</label><select id="gf">${FORMATS.map(([f]) => `<option ${m.format==f?'selected':''}>${f}</option>`).join('')}</select>
+    <label>필요 인원 (명)</label><input id="gn" type="number" inputmode="numeric" value="${m.need}">
+    <label>구장 이름</label><input id="gv" list="vl" value="${esc(m.venue||'')}" placeholder="예) ○○체육공원 축구장">
+    <datalist id="vl">${vs.map(v => `<option value="${esc(v.venue)}">`).join('')}</datalist>
+    <label>주소 (선택)</label><input id="ga" value="${esc(m.address||'')}" placeholder="예) ○○구 ○○로 123">
+    <label>고덕지도 공유 링크 (선택)</label><input id="gm" value="${esc(m.map_url||'')}" placeholder="고덕지도 앱 → 장소 → 공유 → 링크 복사">
+    <div class="hint" style="margin:-4px 0 10px">링크를 비워 두면 구장 이름·주소로 고덕지도에서 자동 검색됩니다.</div>
+    <label>출석 체크 마감 (선택, 비우면 경기 시작 때 마감)</label><input id="gd" type="datetime-local" value="${loc(m.deadline)}">
+    <label>메모 (선택)</label><textarea id="gx" style="min-height:80px" placeholder="예) 흰색·검은색 상의 준비, 8시 30분까지 도착">${esc(m.memo||'')}</textarea>
+    <button class="btn" id="gb">${id ? '수정 저장' : '등록하고 회원에게 알림'}</button></div>`);
+  $('#gf').onchange = e => { const f = FORMATS.find(x => x[0] == e.target.value); if(f && f[1]) $('#gn').value = f[1] };
+  $('#gv').onchange = e => { const v = vs.find(x => x.venue == e.target.value); if(v){ if(!$('#ga').value) $('#ga').value = v.address || ''; if(!$('#gm').value) $('#gm').value = v.map_url || '' } };
+  $('#gb').onclick = async e => {
+    const iso = v => v ? new Date(v).toISOString() : '';
+    if(!$('#gs').value) return toast('날짜·시간을 입력하세요');
+    e.target.disabled = true;
+    try { const r = await api('matchSave', { id: id || '', title:$('#gt').value.trim(), opponent:$('#go').value.trim(), starts_at:iso($('#gs').value),
+        format:$('#gf').value, need:$('#gn').value, venue:$('#gv').value.trim(), address:$('#ga').value.trim(), map_url:$('#gm').value.trim(),
+        deadline:iso($('#gd').value), memo:$('#gx').value });
+      toast(id ? '수정했습니다' : '경기를 등록했습니다'); location.replace('#/match/' + r.id) } catch(x){ e.target.disabled = false }
+  };
+}
+async function matchDetail(id){
+  const r = await api('match', { id:+id }), m = r.m;
+  if(!m) return V(empty('없는 경기입니다'));
+  const by = s => r.att.filter(a => a.status == s).map(a => a.name);
+  const yes = by('참석'), no = by('불참'), maybe = by('미정'), short = m.need - yes.length;
+  const d = new Date(m.starts_at), pc = m.need ? Math.min(100, Math.round(yes.length * 100 / m.need)) : 0;
+  const B = (s, c) => `<button class="btn ${r.mine == s ? c : 'b-ghost'}" style="flex:1;margin:0;${r.mine == s ? '' : 'opacity:.85'}" onclick="doAttend(${m.id},'${s}')">${r.mine == s ? '✅ ' : ''}${s}</button>`;
+  const chips = (t, a) => `<div class="sub" style="margin:10px 0 6px"><b>${t} ${a.length}명</b></div><div class="chips">${a.map(n => `<span class="chip">${esc(n)}</span>`).join('') || '<span class="sub">-</span>'}</div>`;
+  V(`<div class="hero"><div class="hs">${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()} (${WD[d.getDay()]}) ${hm(m.starts_at)}</div>
+      <div class="ht" style="font-size:22px">${esc(m.title)}${m.opponent ? ' vs ' + esc(m.opponent) : ''}</div>
+      <div class="hr"><span>${esc(m.format)} · 필요 ${m.need}명</span><span>${m.open ? (m.deadline ? '마감 ' + fdt(m.deadline) : '경기 시작 때 마감') : '출석 마감'}</span></div></div>
+    ${card('📍 구장', `<div style="font-weight:700">${esc(m.venue || '구장 미정')}</div>${m.address ? `<div class="sub">${esc(m.address)}</div>` : ''}
+      ${m.venue || m.address || m.map_url ? `<a class="btn b-ghost" style="text-align:center" href="${esc(mapUrl(m))}" target="_blank">🗺 고덕지도에서 위치 보기</a>` : ''}
+      ${m.memo ? `<div class="txt" style="margin-top:12px;background:#FFF8E1;border-radius:10px;padding:10px 12px">📌 ${esc(m.memo)}</div>` : ''}`)}
+    <div class="card"><div class="ct"><span>✋ 출석 체크</span><span class="sub" style="margin:0">${r.mine ? '내 응답: ' + esc(r.mine) : '아직 응답 안 함'}</span></div>
+      ${m.open ? `<div style="display:flex;gap:8px">${B('참석','b-green')}${B('불참','b-red')}${B('미정','')}</div>` : '<div class="sub">출석 체크가 마감되었습니다</div>'}
+      <div style="margin-top:16px;background:#EEF1F4;border-radius:99px;height:12px;overflow:hidden"><div style="height:100%;width:${pc}%;background:${short > 0 ? '#FFC83D' : 'var(--green)'}"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:14px"><span>참석 <b>${yes.length}</b> / 필요 ${m.need}명</span>
+        <b style="color:${short > 0 ? '#B3261E' : '#2E7D32'}">${short > 0 ? short + '명 부족' : '인원 충족 ✅' + (short < 0 ? ' (+' + (-short) + ')' : '')}</b></div>
+      ${chips('✅ 참석', yes)}${chips('❌ 불참', no)}${chips('🤔 미정', maybe)}${chips('🙋 미응답', r.missing)}</div>
+    ${isStaff() ? `<div style="display:flex;gap:8px"><a class="btn b-ghost" style="flex:1;text-align:center" href="#/match/edit/${m.id}">✏️ 수정</a><button class="btn b-red" style="flex:1" onclick="delMatch(${m.id})">삭제</button></div>` : ''}
+    <button class="btn" onclick="share(window._sh)">📤 출석 체크 링크 복사 (위챗에 공유)</button>`);
+  window._sh = `⚽ 출석 체크해 주세요: ${m.title}${m.opponent ? ' vs ' + m.opponent : ''}\n📅 ${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]}) ${hm(m.starts_at)} · ${m.venue || ''} · ${m.format}\n현재 참석 ${yes.length}/${m.need}명`;
+}
+async function doAttend(id, s){ await api('attend', { id, status:s }); toast(s + '(으)로 체크했습니다'); matchDetail(id) }
+async function delMatch(id){ if(!confirm('이 경기를 삭제할까요? 출석 기록도 함께 지워집니다.')) return; await api('matchDel', { id }); toast('삭제했습니다'); location.hash = '#/matches' }
+
 // ───── 투표 (기명) ─────
 async function votePage(id){
   const r = await api('poll', { id:+id }), p = r.p;
@@ -495,6 +575,8 @@ const ROUTES = [
   [/^#?\/?$/, home, 'home'], [/^#\/pays$/, pays, 'pay'], [/^#\/pay\/new\/(in|out)$/, payNew, 'pay'], [/^#\/pay\/(\d+)$/, payDetail, 'pay'],
   [/^#\/meets$/, meets, 'meet'], [/^#\/meet\/new$/, meetNew, 'meet'], [/^#\/meet\/(\d+)$/, meetDetail, 'meet'],
   [/^#\/vote\/(\d+)$/, votePage, 'meet'],
+  [/^#\/matches$/, matchesPage, 'match'], [/^#\/match\/new$/, () => matchForm(), 'match'],
+  [/^#\/match\/edit\/(\d+)$/, matchForm, 'match'], [/^#\/match\/(\d+)$/, matchDetail, 'match'],
   [/^#\/reqs$/, reqsPage, 'req'], [/^#\/req\/(\d+)$/, reqsPage, 'req'],
   [/^#\/org$/, org, 'org'], [/^#\/me$/, mePage, 'me']
 ];

@@ -81,9 +81,10 @@ create or replace function _notify(ids bigint[], t text, b text, l text) returns
   insert into notis(to_id,title,body,link) select distinct x,t,b,l from unnest(ids) x where x is not null $$;
 create or replace function _err(m text) returns jsonb language sql immutable as $$ select jsonb_build_object('err',m) $$;
 
--- 회원의 그 달 회비 상태: 연납 > 그 달 기록(납부·면제) > 면제 대상 > 일시중단 > 미납
+-- 회원의 그 달 회비 상태: 가입 전 달은 해당없음, 연납 > 그 달 기록(납부·면제) > 면제 대상 > 일시중단 > 미납
 create or replace function _due(mid bigint, p_ym text) returns text language sql stable security definer set search_path=public as $$
   select case
+    when (select to_char(created_at at time zone 'Asia/Shanghai','YYYY-MM') from members where id=mid) > p_ym then '해당없음'
     when exists(select 1 from dues d where d.member_id=mid and d.ym=left(p_ym,4) and d.status='연납') then '연납'
     when exists(select 1 from dues d where d.member_id=mid and d.ym=p_ym) then (select d.status from dues d where d.member_id=mid and d.ym=p_ym)
     when coalesce((select dues_exempt from members where id=mid), false) then '면제대상'
@@ -192,9 +193,15 @@ begin
         from members m
         left join dues d on d.member_id=m.id and d.ym=ns
         left join dues y on y.member_id=m.id and y.ym=left(ns,4) and y.status='연납'
-        where m.approved),'[]'::jsonb),
+        where m.approved and _due(m.id, ns) <> '해당없음'),'[]'::jsonb),
       'pauses', coalesce((select jsonb_agg(jsonb_build_object('id',z.id,'member_id',z.member_id,'name',m.name,'from',z.from_ym,'to',z.to_ym,
           'reason',z.reason,'by',z.by_name) order by z.from_ym) from dues_pause z join members m on m.id=z.member_id where z.to_ym >= left(ns,7)),'[]'::jsonb));
+
+  when 'myDues' then
+    n := coalesce(nullif(p_d->>'year','')::int, extract(year from now() at time zone 'Asia/Shanghai')::int);
+    return jsonb_build_object('year', n,
+      'months', (select jsonb_agg(jsonb_build_object('m', g, 'status', _due(me.id, n||'-'||lpad(g::text,2,'0'))) order by g) from generate_series(1,12) g),
+      'total', coalesce((select sum(d.amount) from dues d where d.member_id=me.id and (d.ym = n::text or d.ym like n||'-%') and d.status in ('납부','연납')),0));
 
   when 'duesExempt' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;

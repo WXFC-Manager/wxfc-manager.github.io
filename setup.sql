@@ -36,6 +36,11 @@ create table if not exists polls(
   closed boolean default false, deadline timestamptz, by_id bigint, by_name text, created_at timestamptz default now());
 alter table members add column if not exists fail_count int default 0;
 alter table members add column if not exists lock_until timestamptz;
+alter table members add column if not exists dues_exempt boolean default false;
+alter table members add column if not exists dues_note text default '';
+create table if not exists dues_pause(
+  id bigint generated always as identity primary key, member_id bigint references members(id) on delete cascade,
+  from_ym text, to_ym text, reason text default '', by_name text, created_at timestamptz default now());
 create table if not exists dues(
   member_id bigint references members(id) on delete cascade, ym text, status text, amount numeric,
   paid_at timestamptz, by_name text, pay_id bigint, primary key(member_id, ym));
@@ -64,6 +69,7 @@ alter table reqs enable row level security;
 alter table polls enable row level security;
 alter table votes enable row level security;
 alter table dues enable row level security;
+alter table dues_pause enable row level security;
 alter table matches enable row level security;
 alter table attends enable row level security;
 
@@ -74,6 +80,15 @@ create or replace function _ids(roles text[]) returns bigint[] language sql stab
 create or replace function _notify(ids bigint[], t text, b text, l text) returns void language sql security definer set search_path=public as $$
   insert into notis(to_id,title,body,link) select distinct x,t,b,l from unnest(ids) x where x is not null $$;
 create or replace function _err(m text) returns jsonb language sql immutable as $$ select jsonb_build_object('err',m) $$;
+
+-- 회원의 그 달 회비 상태: 연납 > 그 달 기록(납부·면제) > 면제 대상 > 일시중단 > 미납
+create or replace function _due(mid bigint, p_ym text) returns text language sql stable security definer set search_path=public as $$
+  select case
+    when exists(select 1 from dues d where d.member_id=mid and d.ym=left(p_ym,4) and d.status='연납') then '연납'
+    when exists(select 1 from dues d where d.member_id=mid and d.ym=p_ym) then (select d.status from dues d where d.member_id=mid and d.ym=p_ym)
+    when coalesce((select dues_exempt from members where id=mid), false) then '면제대상'
+    when exists(select 1 from dues_pause z where z.member_id=mid and p_ym between z.from_ym and z.to_ym) then '일시중단'
+    else '미납' end $$;
 
 create or replace function ping() returns text language sql as $$ select 'ok' $$;
 
@@ -159,8 +174,7 @@ begin
           (select status from attends a where a.match_id=mt2.id and a.member_id=me.id) mine
           from matches mt2 where mt2.starts_at > now() - interval '3 hours' order by mt2.starts_at limit 1) t),
       'dues_amount', coalesce((select (v->>'amount')::numeric from config where k='dues'),0),
-      'mydue', coalesce((select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY')),
-                        (select status from dues where member_id=me.id and ym=to_char(now() at time zone 'Asia/Shanghai','YYYY-MM'))),
+      'mydue', _due(me.id, to_char(now() at time zone 'Asia/Shanghai','YYYY-MM')),
       'unread', (select count(*) from notis where to_id=me.id and not read));
 
   when 'dues' then
@@ -170,13 +184,41 @@ begin
       'year_amount', coalesce((select (v->>'year_amount')::numeric from config where k='dues'),0),
       'year_deadline', (select v->>'year_deadline' from config where k='dues'),
       'list', coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'role',m.role,
-          'status', case when y.member_id is not null then '연납' else coalesce(d.status,'미납') end,
+          'status', _due(m.id, ns), 'exempt', coalesce(m.dues_exempt,false), 'note', coalesce(m.dues_note,''),
+          'pause', (select jsonb_build_object('id',z.id,'from',z.from_ym,'to',z.to_ym,'reason',z.reason) from dues_pause z
+                    where z.member_id=m.id and ns between z.from_ym and z.to_ym order by z.id desc limit 1),
           'amount', case when y.member_id is not null then y.amount else d.amount end,
           'at', coalesce(y.paid_at, d.paid_at), 'by', coalesce(y.by_name, d.by_name)) order by m.id)
         from members m
         left join dues d on d.member_id=m.id and d.ym=ns
         left join dues y on y.member_id=m.id and y.ym=left(ns,4) and y.status='연납'
-        where m.approved),'[]'::jsonb));
+        where m.approved),'[]'::jsonb),
+      'pauses', coalesce((select jsonb_agg(jsonb_build_object('id',z.id,'member_id',z.member_id,'name',m.name,'from',z.from_ym,'to',z.to_ym,
+          'reason',z.reason,'by',z.by_name) order by z.from_ym) from dues_pause z join members m on m.id=z.member_id where z.to_ym >= left(ns,7)),'[]'::jsonb));
+
+  when 'duesExempt' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;
+    update members set dues_exempt = coalesce((p_d->>'exempt')::boolean,false), dues_note = coalesce(p_d->>'note','')
+      where id=(p_d->>'id')::bigint;
+    return jsonb_build_object('ok',true);
+
+  when 'pauseSave' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 일시중단을 설정할 수 있습니다'); end if;
+    if coalesce(p_d->>'from','') !~ '^\d{4}-\d{2}$' or coalesce(p_d->>'to','') !~ '^\d{4}-\d{2}$' then return _err('시작·끝 달을 입력하세요'); end if;
+    if p_d->>'from' > p_d->>'to' then return _err('끝 달이 시작 달보다 빠릅니다'); end if;
+    if nullif(p_d->>'pid','') is null then
+      insert into dues_pause(member_id,from_ym,to_ym,reason,by_name)
+        values((p_d->>'id')::bigint, p_d->>'from', p_d->>'to', coalesce(p_d->>'reason',''), me.name);
+    else
+      update dues_pause set from_ym=p_d->>'from', to_ym=p_d->>'to', reason=coalesce(p_d->>'reason',''), by_name=me.name
+        where id=(p_d->>'pid')::bigint;
+    end if;
+    return jsonb_build_object('ok',true);
+
+  when 'pauseDel' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;
+    delete from dues_pause where id=(p_d->>'pid')::bigint;
+    return jsonb_build_object('ok',true);
 
   when 'duesAmount' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 바꿀 수 있습니다'); end if;
@@ -228,8 +270,7 @@ begin
   when 'duesRemind' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 알림을 보낼 수 있습니다'); end if;
     ns := p_d->>'ym';
-    perform _notify(array(select m.id from members m where m.approved
-        and not exists(select 1 from dues d where d.member_id=m.id and (d.ym=ns or d.ym=left(ns,4)))),
+    perform _notify(array(select m.id from members m where m.approved and _due(m.id, ns) = '미납'),
       '회비 납부 안내', split_part(ns,'-',1)||'년 '||split_part(ns,'-',2)::int||'월 회비가 아직 납부되지 않았습니다', '#/dues');
     return jsonb_build_object('ok',true);
 
@@ -245,6 +286,7 @@ begin
       'attends', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from attends x),
       'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
       'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
+      'dues_pause', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues_pause x),
       'config',  (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from config x));
 
   when 'matches' then

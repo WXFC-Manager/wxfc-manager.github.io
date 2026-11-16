@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WXFC 사용 설명서</title>
+<meta name="theme-color" content="#1B3A5C">
+<style>
+:root{--navy:#1B3A5C;--green:#2E7D32;--bg:#F2F5F8;--ink:#1F2A37;--sub:#5F6B7A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.75 -apple-system,"PingFang SC","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px 80px}
+header{background:linear-gradient(135deg,var(--navy),var(--green));color:#fff;padding:36px 20px 30px;text-align:center}
+header h1{margin:6px 0 4px;font-size:28px}header p{margin:0;opacity:.85;font-size:15px}
+.back{display:inline-block;margin-top:14px;background:#fff;color:var(--navy);padding:9px 18px;border-radius:99px;font-weight:700;text-decoration:none;font-size:15px}
+nav.toc{background:#fff;border-radius:16px;padding:16px 18px;margin:18px 0;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+nav.toc b{display:block;margin-bottom:6px}
+nav.toc a{display:block;color:#1957A6;text-decoration:none;padding:5px 0;border-bottom:1px solid #EEF1F4}
+nav.toc a:last-child{border:0}
+section{background:#fff;border-radius:16px;padding:20px 18px;margin:18px 0;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+h2{margin:0 0 6px;font-size:22px;color:var(--navy)}
+h3{margin:22px 0 8px;font-size:18px}
+.who{display:inline-block;font-size:13px;font-weight:700;padding:3px 10px;border-radius:99px;background:#EEF3F8;color:var(--navy);margin-bottom:8px}
+.who.g{background:#DFF3E3;color:var(--green)}.who.r{background:#FDE2E1;color:#B3261E}
+ol{padding-left:22px;margin:8px 0}li{margin:6px 0}
+figure{margin:14px 0;text-align:center}
+figure img{width:100%;max-width:320px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.12);border:1px solid #E3E8EE}
+figcaption{font-size:14px;color:var(--sub);margin-top:8px}
+.tip{background:#FFF8E1;border-left:4px solid #FFC83D;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:15px}
+.warn{background:#FDECEA;border-left:4px solid #E53935;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:15px}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;font-size:15px;font-weight:700}
+.flow span{background:#EEF3F8;color:var(--navy);padding:6px 12px;border-radius:99px}.flow i{font-style:normal;color:#9AA5B1}
+table{width:100%;border-collapse:collapse;font-size:15px;margin:10px 0}
+td,th{border-bottom:1px solid #EEF1F4;padding:8px 6px;text-align:left;vertical-align:top}th{color:var(--sub);font-weight:600}
+code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
+.red{color:#E53935;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div style="font-size:44px">⚽</div>
+  <h1>WXFC 사용 설명서</h1>
+  <p>컴퓨터를 몰라도 그림을 보며 따라 하면 됩니다</p>
+  <a class="back" href="./">← 사이트로 돌아가기</a>
+</header>
+<div class="wrap">
+
+<nav class="toc"><b>📚 차례</b>
+  <a href="#s1">1. 처음 시작하기 (가입·로그인)</a>
+  <a href="#s2">2. 홈 화면 보기</a>
+  <a href="#s3">3. 결제 (회장 → 부회장 → 총무)</a>
+  <a href="#s4">4. 회의 안건과 회의록</a>
+  <a href="#s5">5. 요청사항 (일반 회원)</a>
+  <a href="#s6">6. 조직도와 회칙</a>
+  <a href="#s7">7. 회장 전용: 회원 관리</a>
+  <a href="#s8">8. ★ 인수인계 방법</a>
+  <a href="#s9">9. 문제가 생겼을 때</a>
+</nav>
+
+<p class="tip">💡 그림 속 <span class="red">빨간 테두리</span>가 눌러야 할 곳입니다.</p>
+
+<section id="s1">
+  <h2>1. 처음 시작하기</h2>
+  <span class="who">모든 회원</span>
+  <ol>
+    <li>휴대폰으로 <b>https://wxfc-manager.github.io</b> 에 들어갑니다. (위챗 단톡방 링크를 눌러도 됩니다)</li>
+    <li>위쪽의 <b>[가입 신청]</b>을 누릅니다.</li>
+    <li><b>실명</b>과 <b>비밀번호(4자 이상)</b>를 두 번 입력하고 아래 <b>[가입 신청]</b> 버튼을 누릅니다.</li>
+    <li>회장이 승인하면 <b>[로그인]</b>에서 같은 이름·비밀번호로 들어갈 수 있습니다.</li>
+  </ol>
+  <figure><img src="manual/01-login.jpg" alt="가입 신청 화면" loading="lazy"><figcaption>가입 신청 화면</figcaption></figure>
+  <div class="tip">📱 <b>앱처럼 쓰기:</b> 브라우저 메뉴(⋮ 또는 공유 버튼) → <b>'홈 화면에 추가'</b>를 누르면 휴대폰 바탕화면에 아이콘이 생깁니다.<br>
+  위챗 안에서 열었다면 오른쪽 위 <b>···</b> → <b>'브라우저로 열기'</b> 후에 추가하세요.</div>
+  <div class="tip">🔑 비밀번호를 잊었으면 회장에게 말하면 새 비밀번호로 바꿔 줍니다.</div>
+</section>
+
+<section id="s2">
+  <h2>2. 홈 화면</h2>
+  <span class="who">모든 회원</span>
+  <p>로그인하면 처음 보이는 화면입니다.</p>
+  <ul>
+    <li><b>현재 잔액</b>: 회비 수입에서 지출을 뺀 금액이 자동으로 계산됩니다.</li>
+    <li><b>공지</b>: 회장·총무가 올린 공지입니다.</li>
+    <li><b>내가 처리할 일</b>: 운영진에게만 보입니다. 내 결재가 필요한 일이 여기 뜹니다.</li>
+  </ul>
+  <figure><img src="manual/02-home.jpg" alt="홈 화면" loading="lazy"><figcaption>홈 화면 (회장 계정)</figcaption></figure>
+  <h3>아래쪽 메뉴</h3>
+  <table>
+    <tr><th>🏠 홈</th><td>잔액·공지·할 일</td></tr>
+    <tr><th>💳 결제</th><td>돈을 쓴 내역 전체</td></tr>
+    <tr><th>🗓 회의</th><td>회의 안건·회의록</td></tr>
+    <tr><th>💬 요청</th><td>회원 건의·요청사항</td></tr>
+    <tr><th>👥 조직·회칙</th><td>운영진 명단, 회칙 파일</td></tr>
+    <tr><th>🔔 내정보</th><td>알림, 비밀번호 변경, (회장) 회원 관리</td></tr>
+  </table>
+  <div class="tip">🔔 빨간 숫자는 새 알림 개수입니다. <b>내정보</b>를 누르면 알림을 볼 수 있습니다.</div>
+</section>
+
+<section id="s3">
+  <h2>3. 결제</h2>
+  <span class="who">보기: 모든 회원</span> <span class="who g">올리기: 운영진</span>
+  <p>돈을 쓸 때는 반드시 아래 순서를 거칩니다.</p>
+  <div class="flow"><span>운영진 신청</span><i>→</i><span>회장 승인</span><i>→</i><span>부회장 승인</span><i>→</i><span>총무 송금</span><i>→</i><span>지급완료</span></div>
+  <p>일반 회원은 <b>[결제]</b> 메뉴에서 모든 내역을 볼 수만 있습니다.</p>
+  <figure><img src="manual/03-pays.jpg" alt="결제 목록" loading="lazy"><figcaption>결제 목록 — 위쪽 탭으로 상태별로 볼 수 있습니다</figcaption></figure>
+
+  <h3>① 결제안 올리기 <span class="who g">운영진</span></h3>
+  <ol>
+    <li><b>[결제]</b> 메뉴 → 오른쪽 아래 초록색 <b>[+ 결제안]</b></li>
+    <li>제목, 항목, 금액, 사유를 적고, 영수증·견적 사진이 있으면 <b>[+]</b>를 눌러 첨부합니다.</li>
+    <li><b>[결제안 올리기]</b>를 누르면 회장에게 알림이 갑니다.</li>
+  </ol>
+  <figure><img src="manual/04-paynew.jpg" alt="결제안 작성" loading="lazy"><figcaption>결제안 작성 화면</figcaption></figure>
+
+  <h3>② 회장 승인 <span class="who">회장</span></h3>
+  <ol>
+    <li>홈의 <b>'내가 처리할 일'</b> 또는 알림에서 해당 결제안을 엽니다.</li>
+    <li>내용을 확인하고 <b>[승인]</b>을 누릅니다. 안 되는 경우 <b>[반려]</b>를 누르고 이유를 적습니다.</li>
+  </ol>
+  <figure><img src="manual/05-pay-boss.jpg" alt="회장 결재" loading="lazy"><figcaption>결재라인: 노란 점(●)이 지금 결재할 차례입니다</figcaption></figure>
+
+  <h3>③ 부회장 승인 <span class="who">부회장</span></h3>
+  <p>회장이 승인하면 부회장에게 알림이 갑니다. 똑같이 <b>[승인]</b> 또는 <b>[반려]</b>를 누릅니다.</p>
+  <figure><img src="manual/06-pay-vice.jpg" alt="부회장 결재" loading="lazy"><figcaption>부회장 결재 화면</figcaption></figure>
+  <div class="tip">부회장이 지정되어 있지 않으면 이 단계는 자동으로 건너뜁니다.</div>
+
+  <h3>④ 총무 송금 → 지급완료 <span class="who">총무</span></h3>
+  <ol>
+    <li>부회장까지 승인되면 총무에게 <b>'송금 요청'</b> 알림이 갑니다.</li>
+    <li>총무 개인 위챗으로 해당 금액을 송금합니다.</li>
+    <li>위챗 송금 완료 화면을 <b>캡처</b>합니다.</li>
+    <li>결제안을 열고 <b>[+]</b>를 눌러 캡처 사진을 첨부합니다.</li>
+    <li><b>[지급완료]</b>를 누릅니다. 이때 잔액에서 자동으로 빠집니다.</li>
+  </ol>
+  <figure><img src="manual/07-pay-tr.jpg" alt="총무 지급" loading="lazy"><figcaption>송금 캡처를 첨부해야 지급완료를 누를 수 있습니다</figcaption></figure>
+  <figure><img src="manual/08-pay-done.jpg" alt="지급 완료" loading="lazy"><figcaption>지급이 끝난 결제안 — 누가 언제 처리했는지 모두 기록됩니다</figcaption></figure>
+
+  <h3>⑤ 회비 등 수입 등록 <span class="who">회장·총무</span></h3>
+  <p><b>[결제]</b> → 파란색 <b>[+ 수입 등록]</b> → 제목(예: 11월 회비)과 금액 입력 → 등록. 바로 잔액에 더해집니다.</p>
+  <div class="tip">📤 각 상세 화면 맨 아래 <b>[위챗 단톡방 공유 문구 복사]</b>를 누르고 단톡방에 붙여넣으면 회원들에게 알릴 수 있습니다.</div>
+</section>
+
+<section id="s4">
+  <h2>4. 회의 안건과 회의록</h2>
+  <span class="who">보기: 모든 회원 (확정된 회의만)</span> <span class="who g">올리기: 운영진</span>
+  <div class="flow"><span>운영진 안건 올림</span><i>→</i><span>부회장 승인</span><i>→</i><span>회장 승인</span><i>→</i><span>전체 공개</span><i>→</i><span>회의록 등록</span></div>
+  <figure><img src="manual/09-meets.jpg" alt="회의 목록" loading="lazy"><figcaption>회의 목록</figcaption></figure>
+  <h3>① 안건 올리기 <span class="who g">운영진</span></h3>
+  <ol>
+    <li><b>[회의]</b> → 오른쪽 아래 <b>[+ 회의 안건]</b></li>
+    <li>제목, 날짜, 안건 내용을 적고 자료(사진·PDF·문서)가 있으면 <b>[+ 파일 첨부]</b></li>
+    <li><b>[결재 올리기]</b></li>
+  </ol>
+  <h3>② 결재 <span class="who">부회장 → 회장</span></h3>
+  <p>알림을 받으면 회의를 열고 <b>[승인]</b> 또는 <b>[반려]</b>를 누릅니다.</p>
+  <figure><img src="manual/11-meet-vice.jpg" alt="회의 결재" loading="lazy"><figcaption>부회장 결재 차례인 회의</figcaption></figure>
+  <h3>③ 회의록 쓰기 <span class="who g">운영진</span></h3>
+  <p>회장이 승인한 회의를 열고, <b>회의록</b> 칸 오른쪽 <b>[작성·수정]</b> → 회의 결과 입력 → <b>[저장하고 회원에게 알림]</b>.</p>
+  <figure><img src="manual/10-meet.jpg" alt="회의 상세" loading="lazy"><figcaption>확정된 회의 — 안건, 회의록, 처리 기록</figcaption></figure>
+</section>
+
+<section id="s5">
+  <h2>5. 요청사항</h2>
+  <span class="who">모든 회원</span>
+  <p>일반 회원이 운영진에게 건의하거나 요청할 때 씁니다. <b>일반 회원이 글을 쓸 수 있는 유일한 곳</b>입니다.</p>
+  <ol>
+    <li>아래 메뉴 <b>[💬 요청]</b> → <b>[+ 요청하기]</b></li>
+    <li>제목과 내용을 적고 <b>[보내기]</b> → 운영진 모두에게 알림이 갑니다.</li>
+    <li>운영진이 답변하면 나에게 알림이 옵니다.</li>
+  </ol>
+  <figure><img src="manual/12-reqs.jpg" alt="요청사항" loading="lazy"><figcaption>요청사항 화면 (일반 회원)</figcaption></figure>
+  <h3>답변하기 <span class="who g">운영진</span></h3>
+  <p>요청 아래 칸에서 상태(접수 / 처리중 / 완료)를 고르고 답변을 적은 뒤 <b>[답변 저장]</b>.</p>
+  <figure><img src="manual/13-reqs-staff.jpg" alt="요청 답변" loading="lazy"><figcaption>운영진 화면에는 답변 칸이 보입니다</figcaption></figure>
+</section>
+
+<section id="s6">
+  <h2>6. 조직도와 회칙</h2>
+  <span class="who">모든 회원</span>
+  <p><b>[조직·회칙]</b> 메뉴에서 운영진 명단과 회칙 파일을 볼 수 있습니다. 회칙은 <b>[열기]</b>를 누르면 됩니다.</p>
+  <figure><img src="manual/14-org.jpg" alt="조직도와 회칙" loading="lazy"><figcaption>조직도와 회칙</figcaption></figure>
+  <h3>회칙 올리기·바꾸기 <span class="who">회장·총무</span></h3>
+  <p>같은 화면의 <b>[회칙 파일 업로드]</b>(또는 <b>[새 회칙으로 교체]</b>) → 휴대폰에 저장된 PDF·워드 파일 선택. 모든 회원에게 알림이 갑니다.</p>
+  <div class="tip">위챗으로 받은 파일은 먼저 휴대폰에 <b>저장</b>한 뒤 선택하세요.</div>
+</section>
+
+<section id="s7">
+  <h2>7. 회장 전용: 회원 관리</h2>
+  <span class="who">회장</span>
+  <p><b>[내정보]</b> 메뉴를 아래로 내리면 <b>회원 관리</b>가 있습니다.</p>
+  <figure><img src="manual/15-members.jpg" alt="회원 관리" loading="lazy"><figcaption>회원 관리</figcaption></figure>
+  <table>
+    <tr><th>가입 승인</th><td>'가입 승인 대기' 회원의 <b>[승인]</b> (모르는 사람은 <b>[거절]</b>)</td></tr>
+    <tr><th>운영진 지정</th><td>이름 옆 칸을 눌러 <b>부회장 / 총무 / 감독 / 코치 / 회원</b> 중 선택</td></tr>
+    <tr><th>직책 이름</th><td><b>[⋯]</b> → 1번 (예: 경기이사)</td></tr>
+    <tr><th>비밀번호 초기화</th><td><b>[⋯]</b> → 2번 → 새 비밀번호를 정해서 본인에게 알려 주기</td></tr>
+    <tr><th>회원 삭제</th><td><b>[⋯]</b> → 3번 (탈퇴한 회원)</td></tr>
+    <tr><th>홈 공지</th><td>같은 화면의 <b>홈 공지</b> 칸에 쓰고 <b>[공지 저장]</b></td></tr>
+  </table>
+  <h3>권한 정리</h3>
+  <table>
+    <tr><th></th><th>일반 회원</th><th>운영진</th></tr>
+    <tr><td>모든 내역 보기</td><td>✅</td><td>✅</td></tr>
+    <tr><td>요청사항 쓰기</td><td>✅</td><td>✅</td></tr>
+    <tr><td>결제안·회의 안건 올리기</td><td>❌</td><td>✅</td></tr>
+    <tr><td>결재</td><td>❌</td><td>회장·부회장</td></tr>
+    <tr><td>지급완료</td><td>❌</td><td>총무</td></tr>
+  </table>
+</section>
+
+<section id="s8">
+  <h2>8. ★ 인수인계 방법</h2>
+  <span class="who r">회장이 바뀔 때 꼭 하세요</span>
+  <p>인수인계는 <b>두 가지</b>입니다. ①은 버튼 하나, ②는 고장 대비용입니다.</p>
+
+  <h3>① 프로그램 안 회장 인계 (1분)</h3>
+  <ol>
+    <li><b>[내정보]</b> → 아래쪽 <b>'회장 인계'</b></li>
+    <li><b>'새 회장 선택'</b>에서 다음 회장을 고릅니다.</li>
+    <li><b>[회장 인계하기]</b> → 확인. 나는 자동으로 일반 회원이 됩니다.</li>
+  </ol>
+  <figure><img src="manual/16-handover.jpg" alt="회장 인계" loading="lazy"><figcaption>회장 인계</figcaption></figure>
+  <p>총무·부회장·감독·코치가 바뀔 때는 회장이 <a href="#s7">회원 관리</a>에서 역할만 바꾸면 됩니다.</p>
+
+  <h3>② 사이트 관리 계정 넘기기 (10분, 고장 대비)</h3>
+  <p>사이트는 <b>GitHub</b>(화면)과 <b>Supabase</b>(데이터) 두 곳에 있습니다. 평소에는 들어갈 일이 없지만, 고장 났을 때를 위해 관리자를 넘겨 둡니다.</p>
+  <div class="warn">⚠️ 이전 관리자가 <b>나가기 전에</b> 해야 합니다. 나간 뒤에는 넘길 수 없습니다.</div>
+  <p><b>새 관리자가 할 일</b></p>
+  <ol>
+    <li><b>github.com</b> 에서 회원가입 (이메일만 있으면 됨, 휴대폰 번호 불필요)</li>
+    <li>가입한 <b>GitHub 아이디</b>를 이전 관리자에게 알려 줍니다.</li>
+  </ol>
+  <p><b>이전 관리자가 할 일</b></p>
+  <ol>
+    <li><b>GitHub</b>: <code>github.com/orgs/WXFC-Manager/people</code> 접속 → <b>[Invite member]</b> → 새 관리자 아이디 입력 → 역할 <b>Owner</b> → 초대</li>
+    <li><b>Supabase</b>: <code>supabase.com/dashboard</code> → 왼쪽 위 조직 이름 → <b>Team</b> → <b>[Invite]</b> → 새 관리자 이메일 → 역할 <b>Owner</b> → 초대</li>
+    <li>새 관리자가 두 곳의 초대 메일에서 <b>[수락]</b> (Supabase는 <b>'Continue with GitHub'</b>로 로그인)</li>
+    <li>수락이 끝난 것을 확인한 뒤, 이전 관리자는 두 곳에서 <b>Leave(나가기)</b></li>
+  </ol>
+  <div class="tip">사이트 주소, 회원, 결제 기록, 파일은 <b>그대로</b> 유지됩니다. 회원들은 아무것도 할 필요 없습니다.</div>
+  <div class="tip">📝 회장은 <b>[내정보] → 관리 메모</b>에 GitHub 조직 이름 등 필요한 정보를 적어 두세요. 회장 인계 시 함께 넘어갑니다.</div>
+</section>
+
+<section id="s9">
+  <h2>9. 문제가 생겼을 때</h2>
+  <table>
+    <tr><th>증상</th><th>해결</th></tr>
+    <tr><td>'서버가 응답하지 않습니다' / 계속 '불러오는 중'</td><td>사이트 관리자가 <b>supabase.com/dashboard</b> → <b>wxfc</b> 프로젝트 → <b>'Paused'</b>라고 되어 있으면 <b>[Restore]</b> 버튼. 몇 분 뒤 다시 접속.</td></tr>
+    <tr><td>로그인이 안 됨</td><td>이름은 가입할 때와 똑같이(띄어쓰기 포함). 비밀번호를 잊었으면 회장에게 초기화 요청.</td></tr>
+    <tr><td>'승인 대기 중입니다'</td><td>회장이 아직 가입을 승인하지 않았습니다. 회장에게 알려 주세요.</td></tr>
+    <tr><td>사진·파일이 안 올라감</td><td>파일 하나가 20MB를 넘으면 안 됩니다. 와이파이에서 다시 시도.</td></tr>
+    <tr><td>위챗 안에서 파일 저장이 안 됨</td><td>오른쪽 위 <b>···</b> → <b>'브라우저로 열기'</b> 후 다시 시도.</td></tr>
+    <tr><td>사이트가 아예 안 열림</td><td>잠시 후 다시 시도. 계속 안 되면 VPN을 켜거나 끄고 시도.</td></tr>
+  </table>
+  <div class="tip">💾 <b>백업:</b> [내정보] → <b>[결제 내역 엑셀(CSV) 내려받기]</b>로 가끔 저장해 두면 좋습니다.</div>
+  <div class="tip">🛠 서버를 직접 관리하거나 재시작할 일은 없습니다. 3일마다 자동으로 깨워 주는 기능이 설치되어 있습니다.</div>
+</section>
+
+<p style="text-align:center"><a class="back" style="background:var(--navy);color:#fff" href="./">← 사이트로 돌아가기</a></p>
+</div>
+</body>
+</html>

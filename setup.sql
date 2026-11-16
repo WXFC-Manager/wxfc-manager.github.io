@@ -25,6 +25,13 @@ create table if not exists notis(
   to_id bigint references members(id) on delete cascade,
   title text, body text, link text, read boolean default false, created_at timestamptz default now());
 create table if not exists config(k text primary key, v jsonb);
+create table if not exists reqs(
+  id bigint generated always as identity primary key,
+  by_id bigint, by_name text, title text, body text, status text default '접수',
+  reply text default '', replied_by text default '', created_at timestamptz default now(), updated_at timestamptz);
+alter table pays add column if not exists skip_vice boolean default false;
+update pays set status='회장결재' where status='승인대기';
+update pays set status='지급대기' where status='승인';
 
 -- 테이블 직접 접근 금지 (모든 처리는 아래 함수로만)
 alter table members enable row level security;
@@ -33,6 +40,7 @@ alter table pays enable row level security;
 alter table meets enable row level security;
 alter table notis enable row level security;
 alter table config enable row level security;
+alter table reqs enable row level security;
 
 create or replace function _hist(m members, a text, c text) returns jsonb language sql stable as $$
   select jsonb_build_array(jsonb_build_object('who',m.name,'role',m.role,'act',a,'comment',coalesce(c,''),'at',now())) $$;
@@ -90,7 +98,9 @@ begin
       'notice', (select v->>'text' from config where k='notice'),
       'todo', coalesce((select jsonb_agg(t) from (
           select 'pay' kind, id, title, status from pays
-           where (me.role='회장' and status='승인대기') or (me.role='총무' and status='승인')
+           where (me.role='회장' and status='회장결재') or (me.role='부회장' and status='부회장결재') or (me.role='총무' and status='지급대기')
+          union all
+          select 'req', id, title, status from reqs where staff and status='접수'
           union all
           select 'meet', id, title, status from meets
            where (me.role='부회장' and status='부회장검토') or (me.role='회장' and status='회장결재')) t),'[]'::jsonb),
@@ -116,11 +126,12 @@ begin
     ok := p_d->>'type' = '수입';
     if not staff then return _err('결제안은 운영진만 올릴 수 있습니다'); end if;
     if ok and me.role not in ('회장','총무') then return _err('수입은 회장·총무만 등록할 수 있습니다'); end if;
-    insert into pays(type,title,category,amount,reason,receipts,status,applicant_id,applicant,history,paid_at)
+    insert into pays(type,title,category,amount,reason,receipts,status,applicant_id,applicant,history,paid_at,skip_vice)
     values(case when ok then '수입' else '지출' end, p_d->>'title', coalesce(p_d->>'category','기타'),
       (p_d->>'amount')::numeric, coalesce(p_d->>'reason',''), coalesce(p_d->'receipts','[]'),
-      case when ok then '지급완료' else '승인대기' end, me.id, me.name,
-      _hist(me, case when ok then '수입 등록' else '결제안 신청' end, ''), case when ok then now() end)
+      case when ok then '지급완료' else '회장결재' end, me.id, me.name,
+      _hist(me, case when ok then '수입 등록' else '결제안 신청' end, ''), case when ok then now() end,
+      not exists(select 1 from members where approved and role='부회장'))
     returning * into p;
     if not ok then perform _notify(_ids(array['회장']), '결제안 승인 요청', me.name||': '||p.title||' ¥'||p.amount, '#/pay/'||p.id); end if;
     return jsonb_build_object('id', p.id);
@@ -129,15 +140,23 @@ begin
     select * into p from pays where id=(p_d->>'id')::bigint;
     if p.id is null then return _err('없는 항목입니다'); end if;
     if p_d->>'act' in ('approve','reject') then
-      if me.role <> '회장' or p.status <> '승인대기' then return _err('회장만 승인대기 건을 처리할 수 있습니다'); end if;
       ok := p_d->>'act' = 'approve';
-      update pays set status = case when ok then '승인' else '반려' end,
+      if p.status = '회장결재' and me.role = '회장' then
+        ns := case when not ok then '반려' when p.skip_vice then '지급대기' else '부회장결재' end;
+      elsif p.status = '부회장결재' and (me.role = '부회장'
+            or (me.role = '회장' and not exists(select 1 from members where approved and role='부회장'))) then
+        ns := case when ok then '지급대기' else '반려' end;
+      else return _err('지금은 결재할 수 있는 단계가 아닙니다'); end if;
+      update pays set status = ns,
         reject_reason = case when ok then '' else coalesce(p_d->>'comment','') end,
         history = history || _hist(me, case when ok then '승인' else '반려' end, p_d->>'comment') where id=p.id;
-      perform _notify(array[p.applicant_id], case when ok then '결제안 승인' else '결제안 반려' end, p.title, '#/pay/'||p.id);
-      if ok then perform _notify(_ids(array['총무']), '송금 요청', p.title||' ¥'||p.amount, '#/pay/'||p.id); end if;
+      if ns = '부회장결재' then perform _notify(_ids(array['부회장']), '결제안 승인 요청', p.title||' ¥'||p.amount, '#/pay/'||p.id);
+      elsif ns = '지급대기' then
+        perform _notify(_ids(array['총무']), '송금 요청', p.title||' ¥'||p.amount, '#/pay/'||p.id);
+        perform _notify(array[p.applicant_id], '결제안 최종 승인', p.title, '#/pay/'||p.id);
+      else perform _notify(array[p.applicant_id], '결제안 반려', p.title, '#/pay/'||p.id); end if;
     elsif p_d->>'act' = 'paid' then
-      if me.role <> '총무' or p.status <> '승인' then return _err('총무만 승인된 건을 지급완료할 수 있습니다'); end if;
+      if me.role <> '총무' or p.status <> '지급대기' then return _err('총무만 승인된 건을 지급완료할 수 있습니다'); end if;
       if jsonb_array_length(coalesce(p_d->'proof','[]')) = 0 then return _err('송금 캡처를 첨부하세요'); end if;
       update pays set status='지급완료', paid_at=now(), proof=p_d->'proof', history = history || _hist(me,'지급완료','') where id=p.id;
       perform _notify(array[p.applicant_id] || _ids(array['회장']), '지급 완료', p.title||' ¥'||p.amount, '#/pay/'||p.id);
@@ -156,6 +175,7 @@ begin
     return jsonb_build_object('m', to_jsonb(mt));
 
   when 'meetSave' then
+    if not staff then return _err('회의 안건은 운영진만 올릴 수 있습니다'); end if;
     if coalesce(p_d->>'title','')='' then return _err('제목을 입력하세요'); end if;
     select count(*) into n from members where approved and role='부회장';
     insert into meets(title,mdate,agenda,files,status,skip_vice,by_id,by_name,history)
@@ -259,6 +279,26 @@ begin
     if me.pw <> crypt(coalesce(p_d->>'old',''), me.pw) then return _err('현재 비밀번호가 틀립니다'); end if;
     if length(coalesce(p_d->>'new','')) < 4 then return _err('새 비밀번호는 4자 이상'); end if;
     update members set pw=crypt(p_d->>'new', gen_salt('bf')) where id=me.id;
+    return jsonb_build_object('ok',true);
+
+  when 'reqs' then
+    return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
+      select id,by_name,title,body,status,reply,replied_by,created_at,updated_at from reqs order by id desc limit 300) t),'[]'::jsonb));
+
+  when 'reqSave' then
+    if coalesce(trim(p_d->>'title'),'')='' then return _err('제목을 입력하세요'); end if;
+    insert into reqs(by_id,by_name,title,body) values(me.id, me.name, trim(p_d->>'title'), coalesce(p_d->>'body',''))
+      returning id into xid;
+    perform _notify(_ids(array['회장','부회장','총무','감독','코치']), '회원 요청사항', me.name||': '||trim(p_d->>'title'), '#/req/'||xid);
+    return jsonb_build_object('id', xid);
+
+  when 'reqReply' then
+    if not staff then return _err('운영진만 답변할 수 있습니다'); end if;
+    update reqs set status = coalesce(nullif(p_d->>'status',''), status),
+      reply = coalesce(p_d->>'reply', reply), replied_by = me.name, updated_at = now()
+      where id = (p_d->>'id')::bigint returning by_id into xid;
+    if xid is null then return _err('없는 항목입니다'); end if;
+    perform _notify(array[xid], '요청사항 답변 ('||coalesce(p_d->>'status','')||')', coalesce(left(p_d->>'reply',30),''), '#/req/'||(p_d->>'id'));
     return jsonb_build_object('ok',true);
 
   when 'export' then

@@ -36,6 +36,9 @@ async function sync(items, st) {
 
 // 촬영 시각 "2026-11-15 09:18:29" (중국 시간) → ISO
 const toIso = s => { const m = String(s || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/); return m ? `${m[1]}T${m[2].length == 5 ? m[2] + ':00' : m[2]}+08:00` : '' };
+const signOf = u => { try { const x = new URL(u); return x.searchParams.get('sign') || x.searchParams.get('s') || '' } catch (e) { return '' } };
+const shape = (raw, url, sign) => { let h = '', path = '', keys = []; try { const x = new URL(url); h = x.host; path = x.pathname.replace(/[A-Za-z0-9_-]{12,}/g, '*'); keys = [...x.searchParams.keys()] } catch (e) {}
+  return { type: typeof raw, objKeys: raw && typeof raw === 'object' ? Object.keys(raw).slice(0, 10) : [], host: h, path, params: keys, hasSign: !!sign, len: String(url || '').length } };
 const pick = (o, ...ks) => { for (const k of ks) { const v = k.split('.').reduce((a, x) => a && a[x], o); if (v != null && v !== '') return v } return '' };
 
 async function main() {
@@ -73,9 +76,12 @@ async function main() {
       duration: String(pick(v, 'duration', 'videoDuration', 'shootingInfo.duration') || ''), title: String(pick(v, 'name', 'docName', 'fileName', 'title') || '') };
     if (known.has(base.doc_code)) { items.push(base); continue; }         // 이미 링크 있음 → 정보만 갱신
     const link = await call('GET', 'core/api/docs/perennial/url', { params: { docCode: v.docCode }, token });   // XbotGo '링크 복사'와 같은 영구 링크
-    const url = typeof link === 'string' ? link : pick(link || {}, 'url', 'link', 'longLink');
-    let sign = '';
-    try { sign = new URL(url).searchParams.get('sign') || '' } catch (e) {}
+    let url = typeof link === 'string' ? link : pick(link || {}, 'url', 'link', 'longLink', 'shortLink');
+    let sign = signOf(url);
+    if (!sign && /^https?:\/\//.test(url)) {      // 짧은 주소면 따라가서 실제 주소의 sign 확인
+      try { const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15000) }); sign = signOf(r.url); if (sign) url = r.url; } catch (e) {}
+    }
+    if (!status.linkShape) status.linkShape = shape(link, url, sign);   // 진단용: 형태만 기록 (값은 기록 안 함)
     if (!sign) continue;
     items.push({ ...base, sign, link: url });
     status.new++;

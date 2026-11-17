@@ -38,6 +38,7 @@ alter table members add column if not exists fail_count int default 0;
 alter table members add column if not exists lock_until timestamptz;
 alter table members add column if not exists dues_exempt boolean default false;
 alter table members add column if not exists dues_note text default '';
+alter table members add column if not exists video_admin boolean default false;  -- 영상 관리 권한 (회장이 지정)
 create table if not exists dues_pause(
   id bigint generated always as identity primary key, member_id bigint references members(id) on delete cascade,
   from_ym text, to_ym text, reason text default '', by_name text, created_at timestamptz default now());
@@ -178,12 +179,13 @@ end $$;
 
 create or replace function api(p_token text, p_action text, p_d jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
-declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean; pid bigint; amt numeric;
+declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean; vadm boolean; pid bigint; amt numeric;
 begin
   select m.* into me from sessions s join members m on m.id = s.member_id
    where s.token::text = p_token and m.approved and s.created_at > now() - interval '180 days';  -- 로그인 유효기간 180일
   if me.id is null then return jsonb_build_object('err','다른 기기에서 로그인했거나 로그인이 해제되었습니다. 다시 로그인해 주세요','auth',true); end if;
   staff := me.role in ('회장','부회장','총무','감독','코치');
+  vadm := me.role = '회장' or coalesce(me.video_admin, false);  -- 영상 관리: 회장 + 회장이 지정한 사람
   p_d := coalesce(p_d,'{}');
 
   case p_action
@@ -385,12 +387,13 @@ begin
       from videos v left join matches m on m.id=v.match_id
       where not v.hidden and (v.sign is not null or v.mp4 is not null)
         and (nullif(p_d->>'match','') is null or v.match_id = (p_d->>'match')::bigint)
-      order by v.shot_at desc nulls last limit coalesce(nullif(p_d->>'limit','')::int, 30)) t),'[]'::jsonb),
+      order by v.shot_at desc nulls last limit least(coalesce(nullif(p_d->>'limit','')::int, 30), 50) offset greatest(coalesce(nullif(p_d->>'offset','')::int, 0), 0)) t),'[]'::jsonb),
+      'total', (select count(*) from videos v where not v.hidden and (v.sign is not null or v.mp4 is not null)),
       'last', (select v->>'at' from config where k='video_sync_status'),
       'requested', (select v->>'at' from config where k='sync_request'));
 
   when 'syncRequest' then
-    if not staff then return _err('운영진만 요청할 수 있습니다'); end if;
+    if not vadm then return _err('영상 관리 권한이 없습니다 (회장에게 요청하세요)'); end if;
     insert into config values('sync_request', jsonb_build_object('at', now(), 'by', me.name))
       on conflict(k) do update set v=excluded.v;
     return jsonb_build_object('ok',true);
@@ -401,7 +404,7 @@ begin
       from videos v left join matches m on m.id=v.match_id where v.id=(p_d->>'id')::bigint and not v.hidden);
 
   when 'videoEdit' then
-    if not staff then return _err('운영진만 바꿀 수 있습니다'); end if;
+    if not vadm then return _err('영상 관리 권한이 없습니다 (회장에게 요청하세요)'); end if;
     update videos set title = coalesce(left(p_d->>'title',80), title),
       match_id = case when p_d ? 'match_id' then nullif(p_d->>'match_id','')::bigint else match_id end,
       hidden = coalesce((p_d->>'hidden')::boolean, hidden)
@@ -409,7 +412,7 @@ begin
     return jsonb_build_object('ok',true);
 
   when 'syncKey' then
-    if me.role <> '회장' then return _err('회장만 설정할 수 있습니다'); end if;
+    if me.role not in ('회장','부회장') then return _err('회장·부회장만 설정할 수 있습니다'); end if;
     if coalesce(p_d->>'hash','') !~ '^[0-9a-f]{64}$' then return _err('잘못된 키'); end if;
     insert into config values('sync_key', jsonb_build_object('hash', p_d->>'hash', 'at', now(), 'by', me.name))
       on conflict(k) do update set v=excluded.v;
@@ -626,9 +629,9 @@ begin
           where to_id=me.id order by created_at desc limit 50) t),'[]'::jsonb),
       'notice', (select v->>'text' from config where k='notice'),
       'users', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
-          select id,name,role,position,approved from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
+          select id,name,role,position,approved,coalesce(video_admin,false) video_admin from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
       'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end,
-      'sync', case when me.role='회장' then jsonb_build_object('key_at', (select v->>'at' from config where k='sync_key'),
+      'sync', case when me.role in ('회장','부회장') then jsonb_build_object('key_at', (select v->>'at' from config where k='sync_key'),
           'status', (select v from config where k='video_sync_status'), 'count', (select count(*) from videos where sign is not null)) end,
       'storage', case when me.role='회장' then (select coalesce(sum((o.metadata->>'size')::bigint),0) from storage.objects o where o.bucket_id='files') end);
 
@@ -644,6 +647,12 @@ begin
       perform _notify(array[xid], '가입 승인', '축구회 가입이 승인되었습니다', '#/');
     end if;
     if p_d ? 'position' then update members set position=coalesce(p_d->>'position','') where id=xid; end if;
+    if p_d ? 'video_admin' then
+      update members set video_admin=coalesce((p_d->>'video_admin')::boolean,false) where id=xid;
+      if coalesce((p_d->>'video_admin')::boolean,false) then
+        perform _notify(array[xid], '영상 관리 권한', '경기 영상 가져오기·정리 권한이 생겼습니다', '#/videos');
+      end if;
+    end if;
     if p_d ? 'role' then
       if xid = me.id then return _err('본인 역할은 회장 인계로만 바꿀 수 있습니다'); end if;
       if p_d->>'role' not in ('회장','부회장','총무','감독','코치','회원') then return _err('잘못된 역할'); end if;

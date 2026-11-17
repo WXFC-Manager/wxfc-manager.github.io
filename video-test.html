@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>영상 재생 시험</title>
+<style>
+:root{--navy:#1B3A5C;--green:#2E7D32;--bg:#F2F5F8;--ink:#1F2A37;--sub:#5F6B7A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,"PingFang SC","Malgun Gothic",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:20px;color:var(--navy);margin:6px 0 4px}
+.card{background:#fff;border-radius:14px;padding:16px;margin:14px 0;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+textarea{width:100%;min-height:90px;border:0;background:#F5F7FA;border-radius:10px;padding:12px;font:inherit}
+button,.btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;font:inherit;font-weight:700;background:var(--navy);color:#fff;margin-top:10px;text-align:center;text-decoration:none}
+.ghost{background:#EEF3F8;color:var(--navy)}
+.sub{font-size:13px;color:var(--sub)}
+.player{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+.player iframe,.player video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.ok{color:var(--green);font-weight:700}.bad{color:#B3261E;font-weight:700}
+ol{padding-left:20px;margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎥 XbotGo 영상 재생 시험</h1>
+  <div class="sub">시험용 페이지입니다. 실제 사이트 기능과는 관계없습니다.</div>
+
+  <div class="card">
+    <b>1. XbotGo 공유 링크 붙여넣기</b>
+    <textarea id="u" placeholder="https://cloud.xbotgo.net/share?shareEventId=..."></textarea>
+    <button id="go">시험 시작</button>
+  </div>
+
+  <div class="card" id="info" style="display:none"></div>
+
+  <div class="card" id="box" style="display:none">
+    <b>2. 사이트 안 재생 (A안)</b>
+    <div class="sub" style="margin:4px 0 10px">아래 검은 칸 안에 영상(또는 XbotGo 화면)이 보이면 <span class="ok">성공</span>, 회색 오류 화면이나 빈 칸이면 <span class="bad">끼워 넣기 차단</span>입니다.</div>
+    <div class="player" id="p"></div>
+    <a class="btn ghost" id="open" target="_blank" rel="noopener noreferrer">비교용: 새 창에서 열기 (B안)</a>
+  </div>
+
+  <div class="card">
+    <b>3. 결과 알려 주세요</b>
+    <ol>
+      <li>2번 검은 칸 안에서 <b>영상이 보이고 재생되는지</b></li>
+      <li>칸 안에서 <b>전체 화면</b>이 되는지</li>
+      <li><b>위챗 안</b>과 <b>휴대폰 브라우저</b> 두 곳에서 각각 어떤지</li>
+    </ol>
+    <div class="sub">화면을 캡처해서 보내 주시면 됩니다.</div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function expiry(url){
+  try {
+    const code = new URL(url).searchParams.get('encyptcode'); if(!code) return null;
+    const parts = atob(code).split(':'), ms = Number(parts[parts.length - 1]);
+    return ms > 1e12 ? { region: parts[0], date: new Date(ms) } : null;
+  } catch(e){ return null }
+}
+$('#go').onclick = () => {
+  const m = $('#u').value.match(/https:\/\/[^\s"'<>]+/);
+  if(!m) return alert('https:// 로 시작하는 링크를 붙여넣어 주세요');
+  const url = m[0], u = new URL(url);
+  const ex = expiry(url), now = new Date();
+  const days = ex ? Math.ceil((ex.date - now) / 864e5) : null;
+  $('#info').style.display = '';
+  $('#info').innerHTML = `<b>링크 분석</b><br>
+    <span class="sub">주소: ${esc(u.host)}</span><br>
+    ${ex ? `만료 예정: <b>${ex.date.toLocaleString('ko-KR')}</b> (${days > 0 ? `<span class="ok">${days}일 남음</span>` : '<span class="bad">이미 만료</span>'})<br><span class="sub">서버 지역 표시: ${esc(ex.region)}</span>`
+         : '<span class="sub">만료일 정보를 찾지 못했습니다</span>'}`;
+  const isFile = /\.(mp4|m3u8|mov|webm)(\?|$)/i.test(u.pathname + u.search);
+  $('#p').innerHTML = isFile
+    ? `<video controls playsinline preload="metadata" src="${esc(url)}"></video>`
+    : `<iframe src="${esc(url)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  $('#open').href = url;
+  $('#box').style.display = '';
+  $('#box').scrollIntoView({ behavior:'smooth' });
+};
+</script>
+</body>
+</html>

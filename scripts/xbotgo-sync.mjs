@@ -71,6 +71,13 @@ async function main() {
 
   status.step = 'links';
   const items = [];
+  if (ready[0]) {   // 진단: 영구 링크의 만료 시각(t, 16진수 초) 확인 — 값 자체는 기록 안 함
+    const l0 = await call('GET', 'core/api/docs/perennial/url', { params: { docCode: ready[0].docCode }, token });
+    try { const t = new URL(typeof l0 === 'string' ? l0 : '').searchParams.get('t'); status.linkExpires = t ? new Date(parseInt(t, 16) * 1000).toISOString() : 'none' } catch (e) { status.linkExpires = 'parse-fail' }
+    try { const vv = await call('POST', 'cloud-drive/api/docs/videoView', { body: { docCode: ready[0].docCode }, token });
+      status.viewKeys = Object.keys(vv || {}); const m = vv && vv.mp4Links && vv.mp4Links[0] && vv.mp4Links[0].url; status.viewMp4 = !!m;
+      if (m) { const q = new URL(m).searchParams.get('sign') || ''; const st = (decodeURIComponent(q).match(/q-sign-time=(\d+);(\d+)/) || []); status.mp4Valid = st[2] ? ((st[2] - st[1]) / 3600) + 'h' : '?' } } catch (e) { status.viewErr = clean(e.message) }
+  }
   for (const v of ready) {
     const base = { doc_code: String(v.docCode), shot_at: toIso(pick(v, 'shootingInfo.shootingTimeStr', 'shootingTimeStr', 'createTime')),
       duration: String(pick(v, 'duration', 'videoDuration', 'shootingInfo.duration') || ''), title: String(pick(v, 'name', 'docName', 'fileName', 'title') || '') };

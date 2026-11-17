@@ -1,7 +1,8 @@
 name: xbotgo-sync
 on:
   schedule:
-    - cron: '17 */8 * * *'   # 8시간마다 (재생 주소가 24시간 유효하므로 넉넉히 갱신)
+    - cron: '17 */8 * * *'   # 8시간마다 전체 가져오기 (재생 주소가 24시간 유효하므로 넉넉히 갱신)
+    - cron: '*/10 * * * *'   # 10분마다: 사이트의 [새 영상 가져오기] 요청이 있을 때만 실행
   workflow_dispatch:
 permissions:
   contents: write
@@ -19,6 +20,7 @@ jobs:
           XBOTGO_PW_MD5: ${{ secrets.XBOTGO_PW_MD5 }}
           XBOTGO_PASSWORD: ${{ secrets.XBOTGO_PASSWORD }}
           WXFC_SYNC_KEY: ${{ secrets.WXFC_SYNC_KEY }}
+          SYNC_MODE: ${{ github.event.schedule == '*/10 * * * *' && 'check' || 'full' }}
         run: node scripts/xbotgo-sync.mjs
       - name: 상태 기록 (숫자·오류 요약만)
         if: always()

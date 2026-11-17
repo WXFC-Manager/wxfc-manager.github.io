@@ -106,6 +106,12 @@ async function main() {
 }
 
 if (!env('XBOTGO_PHONE')) { console.log('GitHub 금고가 아직 설정되지 않아 건너뜁니다'); process.exit(0); }
+// 10분마다 도는 '확인' 모드: 사이트에서 [새 영상 가져오기] 요청이 있을 때만 실제로 가져옴
+if (env('SYNC_MODE') === 'check') {
+  const r = await sync([], null).catch(e => ({ err: e.message }));
+  if (!r || !r.requested) { console.log('가져오기 요청 없음'); process.exit(0); }
+  console.log('가져오기 요청 있음 → 진행');
+}
 main().catch(async e => {
   status.error = clean(e.message);
   try { await sync([], { ok: false, step: status.step, error: status.error }) } catch (x) {}

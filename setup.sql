@@ -127,8 +127,10 @@ begin
   if p_status is not null then
     insert into config values('video_sync_status', p_status || jsonb_build_object('at', now(), 'saved', n))
       on conflict(k) do update set v=excluded.v;
+    delete from config where k='sync_request';   -- 가져오기를 마쳤으니 수동 요청 처리 완료
   end if;
-  return jsonb_build_object('ok', true, 'saved', n, 'known', coalesce((select jsonb_agg(doc_code) from videos where sign is not null), '[]'::jsonb));
+  return jsonb_build_object('ok', true, 'saved', n, 'requested', (select v->>'at' from config where k='sync_request'),
+    'known', coalesce((select jsonb_agg(doc_code) from videos where sign is not null), '[]'::jsonb));
 end $$;
 
 create or replace function ping() returns text language sql as $$ select 'ok' $$;
@@ -383,7 +385,15 @@ begin
       from videos v left join matches m on m.id=v.match_id
       where not v.hidden and (v.sign is not null or v.mp4 is not null)
         and (nullif(p_d->>'match','') is null or v.match_id = (p_d->>'match')::bigint)
-      order by v.shot_at desc nulls last limit coalesce(nullif(p_d->>'limit','')::int, 30)) t),'[]'::jsonb));
+      order by v.shot_at desc nulls last limit coalesce(nullif(p_d->>'limit','')::int, 30)) t),'[]'::jsonb),
+      'last', (select v->>'at' from config where k='video_sync_status'),
+      'requested', (select v->>'at' from config where k='sync_request'));
+
+  when 'syncRequest' then
+    if not staff then return _err('운영진만 요청할 수 있습니다'); end if;
+    insert into config values('sync_request', jsonb_build_object('at', now(), 'by', me.name))
+      on conflict(k) do update set v=excluded.v;
+    return jsonb_build_object('ok',true);
 
   when 'videoPlay' then
     return (select jsonb_build_object('mp4', case when v.mp4_until > now() + interval '10 minutes' then v.mp4 end, 'link', v.link, 'shot_at', v.shot_at, 'duration', v.duration, 'title', v.title,

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WXFC 축구회</title>
 <meta name="theme-color" content="#1B3A5C">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://yksmqlinnirkimwimxnh.supabase.co; connect-src 'self' https://yksmqlinnirkimwimxnh.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WXFC">
@@ -166,7 +168,7 @@ const V = h => { $('#app').innerHTML = h; window.scrollTo(0,0) };
 // 자동 로그인: 휴대폰에 로그인 정보를 저장 (위챗 브라우저 대비 쿠키에도 저장)
 const TK = {
   get(){ return LS.get('wxfc_t') || (document.cookie.match(/(?:^|; )wxfc_t=([^;]+)/) || [])[1] || null },
-  set(v){ LS.set('wxfc_t', v); try { document.cookie = 'wxfc_t=' + (v || '') + ';path=/;max-age=' + (v ? 31536000 : 0) + ';SameSite=Lax' } catch(e){} }
+  set(v){ LS.set('wxfc_t', v); try { document.cookie = 'wxfc_t=' + (v || '') + ';path=/;max-age=' + (v ? 31536000 : 0) + ';SameSite=Strict;Secure' } catch(e){} appToken(v) }
 };
 let TOKEN = TK.get(), ME = null, PAYF = '', loading = false, pending = false;
 
@@ -214,8 +216,14 @@ async function pickUpload(input, arr, after){
   for(const f of fs){ try { arr.push(await upload(f)) } catch(e){ return } }
   toast('업로드 완료'); after();
 }
-const thumbs = list => (list||[]).filter(f=>f.img!==false).map(f => `<a href="${esc(f.url)}" target="_blank"><img class="thumb" src="${esc(f.url)}" loading="lazy"></a>`).join('');
-const fileRow = (f, delAttr) => `<div class="file"><span class="fn">📎 ${esc(f.name)}</span>${delAttr ? `<span class="del" ${delAttr}>삭제</span>` : `<a class="link" href="${esc(f.url)}" target="_blank">열기</a>`}</div>`;
+// 보안: 사용자가 넣은 주소는 https 만 허용 (javascript: 등 차단)
+const safeUrl = u => /^https:\/\/[^\s"'<>]+$/i.test(String(u || '')) ? String(u) : '#';
+const safeLink = l => /^#\/[\w\/-]{0,64}$/.test(String(l || '')) ? l : '#/';
+// 운영진 알림 앱(APK)에 로그인 정보 전달
+const IN_APP = / WXFCApp\//.test(navigator.userAgent);
+function appToken(v){ try { if(window.WXFCApp) window.WXFCApp.setToken(v || '') } catch(e){} }
+const thumbs = list => (list||[]).filter(f=>f.img!==false).map(f => `<a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer"><img class="thumb" src="${esc(safeUrl(f.url))}" loading="lazy"></a>`).join('');
+const fileRow = (f, delAttr) => `<div class="file"><span class="fn">📎 ${esc(f.name)}</span>${delAttr ? `<span class="del" ${delAttr}>삭제</span>` : `<a class="link" rel="noopener noreferrer" href="${esc(safeUrl(f.url))}" target="_blank">열기</a>`}</div>`;
 
 // ───── 위챗 공유 문구 복사 ─────
 function share(text){
@@ -562,7 +570,7 @@ async function reportPage(){
 const ATTEND = false;
 const FORMATS = [['11인제',11],['9인제',9],['8인제',8],['7인제',7],['6인제',6],['5인제 (풋살)',5],['기타',0]];
 const WD = ['일','월','화','수','목','금','토'];
-const mapUrl = m => m.map_url || `https://uri.amap.com/search?keyword=${encodeURIComponent((m.venue + ' ' + (m.address||'')).trim())}&src=wxfc&callnative=1`;
+const mapUrl = m => (safeUrl(m.map_url) != '#' ? m.map_url : '') || `https://uri.amap.com/search?keyword=${encodeURIComponent((m.venue + ' ' + (m.address||'')).trim())}&src=wxfc&callnative=1`;
 const dateBox = s => { const d = new Date(s); return `<div class="date"><div class="dm">${d.getMonth()+1}월 (${WD[d.getDay()]})</div><div class="dd">${d.getDate()}</div></div>` };
 const hm = s => { const d = new Date(s); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') };
 let CY = null, CMo = 0, CSel = null;
@@ -639,7 +647,7 @@ async function matchDetail(id){
       <div class="ht" style="font-size:22px">${esc(m.title)}${m.opponent ? ' vs ' + esc(m.opponent) : ''}</div>
       <div class="hr"><span>${esc(m.format)}${ATTEND ? ` · 필요 ${m.need}명` : ''}</span><span>${!ATTEND ? '' : m.open ? (m.deadline ? '마감 ' + fdt(m.deadline) : '경기 시작 때 마감') : '출석 마감'}</span></div></div>
     ${card('📍 구장', `<div style="font-weight:700">${esc(m.venue || '구장 미정')}</div>${m.address ? `<div class="sub">${esc(m.address)}</div>` : ''}
-      ${m.venue || m.address || m.map_url ? `<a class="btn b-ghost" style="text-align:center" href="${esc(mapUrl(m))}" target="_blank">🗺 고덕지도에서 위치 보기</a>` : ''}
+      ${m.venue || m.address || m.map_url ? `<a class="btn b-ghost" style="text-align:center" href="${esc(mapUrl(m))}" target="_blank" rel="noopener noreferrer">🗺 고덕지도에서 위치 보기</a>` : ''}
       ${m.memo ? `<div class="txt" style="margin-top:12px;background:#FFF8E1;border-radius:10px;padding:10px 12px">📌 ${esc(m.memo)}</div>` : ''}`)}
     ${ATTEND ? `<div class="card"><div class="ct"><span>✋ 출석 체크</span><span class="sub" style="margin:0">${r.mine ? '내 응답: ' + esc(r.mine) : '아직 응답 안 함'}</span></div>
       ${m.open ? `<div style="display:flex;gap:8px">${B('참석','b-green')}${B('불참','b-red')}${B('미정','')}</div>` : '<div class="sub">출석 체크가 마감되었습니다</div>'}
@@ -715,7 +723,7 @@ async function org(){
   const staff = r.users.filter(u => ORD.includes(u.role) || u.position).sort((a,b) => rank(a) - rank(b));
   const mem = r.users.filter(u => !staff.includes(u));
   const R = r.rules;
-  V(`${card('📜 회칙', `${R ? `<a class="file" href="${esc(R.url)}" target="_blank"><span class="fn">📄 ${esc(R.name)}</span><span class="link">열기</span></a><div class="sub">${fdt(R.at)} · ${esc(R.by)} 등록</div>` : '<div class="sub">아직 등록된 회칙이 없습니다</div>'}
+  V(`${card('📜 회칙', `${R ? `<a class="file" href="${esc(safeUrl(R.url))}" target="_blank" rel="noopener noreferrer"><span class="fn">📄 ${esc(R.name)}</span><span class="link">열기</span></a><div class="sub">${fdt(R.at)} · ${esc(R.by)} 등록</div>` : '<div class="sub">아직 등록된 회칙이 없습니다</div>'}
       ${can ? `<label class="btn b-ghost" style="position:relative;text-align:center;margin-top:12px">${R ? '새 회칙으로 교체' : '회칙 파일 업로드'}<input id="ru" type="file" accept=".pdf,.doc,.docx,.hwp,.xls,.xlsx,.txt,image/*" style="position:absolute;inset:0;opacity:0;margin:0"></label>` : ''}`)}
     ${card('👥 운영진', staff.map(u => `<div class="person"><div class="av ${u.role=='회장'?'':'g'}">${esc(u.name.slice(0,1))}</div><div class="grow"><div style="font-weight:700">${esc(u.name)}</div><div class="sub">${esc(u.position || u.role)}${u.position && u.role != '회원' ? ' · ' + esc(u.role) : ''}</div></div></div>`).join('') || empty('운영진 정보가 없습니다'))}
     ${card(`⚽ 회원 ${mem.length}명`, `<div class="chips">${mem.map(u => `<span class="chip">${esc(u.name)}</span>`).join('')}</div>`)}`);
@@ -758,7 +766,7 @@ async function mePage(){
   const PER = 5, pages = Math.max(1, Math.ceil(r.notis.length / PER)); let np = 0;
   const drawN = () => {
     const list = r.notis.slice(np * PER, np * PER + PER);
-    $('#nl').innerHTML = (list.map(n => `<a class="it ${n.read?'':'unread'}" href="${esc(n.link||'#/')}"><div class="grow"><div style="font-weight:${n.read?400:700}">${esc(n.title)}</div><div class="sub">${esc(n.body)} · ${fdt(n.created_at)}</div></div><span class="link">이동 ›</span></a>`).join('') || empty('알림이 없습니다'))
+    $('#nl').innerHTML = (list.map(n => `<a class="it ${n.read?'':'unread'}" href="${esc(safeLink(n.link))}"><div class="grow"><div style="font-weight:${n.read?400:700}">${esc(n.title)}</div><div class="sub">${esc(n.body)} · ${fdt(n.created_at)}</div></div><span class="link">이동 ›</span></a>`).join('') || empty('알림이 없습니다'))
       + (pages > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
           <button class="btn b-ghost sm" id="np" ${np ? '' : 'disabled'}>‹ 이전</button><span class="sub" style="margin:0">${np + 1} / ${pages}</span>
           <button class="btn b-ghost sm" id="nn" ${np < pages - 1 ? '' : 'disabled'}>다음 ›</button></div>` : '');
@@ -810,7 +818,7 @@ async function route(){
   if(!TOKEN) return loginView();
   if(loading){ pending = true; return } loading = true;
   try {
-    if(!ME) await loadMe();
+    if(!ME){ await loadMe(); appToken(TOKEN) }
     $('#nav').style.display = ''; $('#lang').style.display = 'none';
     const h = location.hash || '#/';
     const [re, fn, t] = ROUTES.find(r => r[0].test(h)) || ROUTES[0];

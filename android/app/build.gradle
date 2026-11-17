@@ -1,0 +1,31 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'cn.wxfc.manager'
+  compileSdk 34
+  defaultConfig {
+    applicationId 'cn.wxfc.manager'
+    minSdk 26
+    targetSdk 34
+    versionCode((System.getenv('VCODE') ?: '1').toInteger())
+    versionName '1.0'
+  }
+  signingConfigs {
+    release {
+      // 서명 키는 빌드할 때마다 GitHub Actions 안에서 새로 만들고 저장하지 않습니다 (키 유출 방지)
+      storeFile file(System.getenv('KS_PATH') ?: 'missing.jks')
+      storePassword System.getenv('KS_PASS')
+      keyAlias 'wxfc'
+      keyPassword System.getenv('KS_PASS')
+    }
+  }
+  buildTypes {
+    release {
+      minifyEnabled true
+      shrinkResources true
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+      signingConfig signingConfigs.release
+    }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'androidx.security:security-crypto:1.0.0' }

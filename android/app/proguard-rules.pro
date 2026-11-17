@@ -1,0 +1,3 @@
+-keepclassmembers class cn.wxfc.manager.MainActivity$Bridge { @android.webkit.JavascriptInterface <methods>; }
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**

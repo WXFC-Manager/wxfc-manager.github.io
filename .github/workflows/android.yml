@@ -1,0 +1,42 @@
+name: android-apk
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: android-apk, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.7' }
+      - name: Build signed APK (one-time key, never stored)
+        working-directory: android
+        run: |
+          set -e
+          export KS_PATH="$RUNNER_TEMP/release.jks"
+          export KS_PASS="$(openssl rand -hex 24)"
+          export VCODE="${{ github.run_number }}"
+          keytool -genkeypair -noprompt -keystore "$KS_PATH" -storepass "$KS_PASS" -keypass "$KS_PASS" \
+            -alias wxfc -keyalg RSA -keysize 3072 -validity 10000 -dname "CN=WXFC Manager, O=WXFC"
+          gradle --no-daemon -q assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/wxfc.apk"
+          rm -f "$KS_PATH"
+      - name: Publish APK to site (app/wxfc.apk)
+        run: |
+          set -e
+          mkdir -p app
+          cp "$RUNNER_TEMP/wxfc.apk" app/wxfc.apk
+          sha256sum app/wxfc.apk | cut -d' ' -f1 > app/wxfc.apk.sha256
+          date -u +%Y-%m-%dT%H:%MZ > app/wxfc.apk.date
+          git config user.name apk-bot
+          git config user.email apk-bot@users.noreply.github.com
+          git add app
+          git commit -m "APK build #${{ github.run_number }}" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main

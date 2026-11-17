@@ -139,7 +139,7 @@ language plpgsql security definer set search_path=public, extensions as $$
 declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean; pid bigint; amt numeric;
 begin
   select m.* into me from sessions s join members m on m.id = s.member_id
-   where s.token::text = p_token and m.approved;
+   where s.token::text = p_token and m.approved and s.created_at > now() - interval '180 days';  -- 로그인 유효기간 180일
   if me.id is null then return jsonb_build_object('err','다른 기기에서 로그인했거나 로그인이 해제되었습니다. 다시 로그인해 주세요','auth',true); end if;
   staff := me.role in ('회장','부회장','총무','감독','코치');
   p_d := coalesce(p_d,'{}');
@@ -369,6 +369,11 @@ begin
       'list', coalesce((select jsonb_agg(x order by x.t) from (select d.id, d.type, d.title, d.category, d.amount, d.applicant, d.t
                 from d, r where d.t >= r.s and d.t < r.e) x),'[]'::jsonb),
       'years', coalesce((select jsonb_agg(distinct extract(year from d.t)::int) from d),'[]'::jsonb)));
+
+  when 'notiPoll' then  -- 운영진 알림 앱이 1분마다 호출 (가볍게)
+    return jsonb_build_object('max', coalesce((select max(id) from notis where to_id=me.id),0),
+      'list', coalesce((select jsonb_agg(t order by t.id) from (select id,title,body,link from notis
+          where to_id=me.id and id > coalesce(nullif(p_d->>'after','')::bigint,0) order by id limit 20) t),'[]'::jsonb));
 
   when 'pays' then
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
@@ -625,5 +630,12 @@ insert into storage.buckets(id,name,public,file_size_limit)
   values('files','files',true,20971520) on conflict(id) do nothing;
 drop policy if exists "wxfc upload" on storage.objects;
 create policy "wxfc upload" on storage.objects for insert to anon, authenticated with check (bucket_id='files');
+-- 보안: 올릴 수 있는 파일 종류 제한 (사진·PDF·문서만, 웹페이지·실행 파일 차단)
+update storage.buckets set file_size_limit = 20971520, allowed_mime_types = array[
+  'image/jpeg','image/png','image/webp','image/gif','image/heic','application/pdf','text/plain','text/csv',
+  'application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/haansofthwp','application/x-hwp','application/octet-stream'] where id = 'files';
 
 select '설치 완료' as result;

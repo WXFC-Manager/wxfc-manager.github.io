@@ -71,17 +71,21 @@ async function main() {
 
   status.step = 'links';
   const items = [];
-  if (ready[0]) {   // 진단: 영구 링크의 만료 시각(t, 16진수 초) 확인 — 값 자체는 기록 안 함
-    const l0 = await call('GET', 'core/api/docs/perennial/url', { params: { docCode: ready[0].docCode }, token });
-    try { const t = new URL(typeof l0 === 'string' ? l0 : '').searchParams.get('t'); status.linkExpires = t ? new Date(parseInt(t, 16) * 1000).toISOString() : 'none' } catch (e) { status.linkExpires = 'parse-fail' }
-    try { const vv = await call('POST', 'cloud-drive/api/docs/videoView', { body: { docCode: ready[0].docCode }, token });
-      status.viewKeys = Object.keys(vv || {}); const m = vv && vv.mp4Links && vv.mp4Links[0] && vv.mp4Links[0].url; status.viewMp4 = !!m;
-      if (m) { const q = new URL(m).searchParams.get('sign') || ''; const st = (decodeURIComponent(q).match(/q-sign-time=(\d+);(\d+)/) || []); status.mp4Valid = st[2] ? ((st[2] - st[1]) / 3600) + 'h' : '?' } } catch (e) { status.viewErr = clean(e.message) }
-  }
   for (const v of ready) {
     const base = { doc_code: String(v.docCode), shot_at: toIso(pick(v, 'shootingInfo.shootingTimeStr', 'shootingTimeStr', 'createTime')),
       duration: String(pick(v, 'duration', 'videoDuration', 'shootingInfo.duration') || ''), title: String(pick(v, 'name', 'docName', 'fileName', 'title') || '') };
-    if (known.has(base.doc_code)) { items.push(base); continue; }         // 이미 링크 있음 → 정보만 갱신
+    // 재생용 MP4 주소(24시간 유효)를 매번 새로 받아 둠 → 사이트 재생기가 바로 사용
+    try {
+      const vv = await call('POST', 'cloud-drive/api/docs/videoView', { body: { docCode: v.docCode }, token });
+      const m = vv && vv.mp4Links && vv.mp4Links[0] && vv.mp4Links[0].url;
+      if (m && /^https:\/\//.test(m)) {
+        const st = decodeURIComponent(new URL(m).searchParams.get('sign') || '').match(/q-sign-time=(\d+);(\d+)/);
+        base.mp4 = m; base.mp4_until = new Date((st ? Number(st[2]) : Date.now() / 1000 + 6 * 3600) * 1000).toISOString();
+        status.mp4 = (status.mp4 || 0) + 1;
+      }
+      if (!base.duration && vv && vv.duration) base.duration = String(vv.duration);
+    } catch (e) { status.mp4Err = clean(e.message) }
+    if (known.has(base.doc_code)) { items.push(base); continue; }         // 이미 영구 링크 있음 → 재생 주소·정보만 갱신
     const link = await call('GET', 'core/api/docs/perennial/url', { params: { docCode: v.docCode }, token });   // XbotGo '링크 복사'와 같은 영구 링크
     let url = typeof link === 'string' ? link : pick(link || {}, 'url', 'link', 'longLink', 'shortLink');
     let sign = signOf(url);
@@ -89,8 +93,8 @@ async function main() {
       try { const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15000) }); sign = signOf(r.url); if (sign) url = r.url; } catch (e) {}
     }
     if (!status.linkShape) status.linkShape = shape(link, url, sign);   // 진단용: 형태만 기록 (값은 기록 안 함)
-    if (!sign) continue;
-    items.push({ ...base, sign, link: url });
+    if (!sign && !base.mp4) continue;
+    items.push({ ...base, sign: sign || null, link: url });
     status.new++;
   }
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WXFC 축구회</title>
 <meta name="theme-color" content="#1B3A5C">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://yksmqlinnirkimwimxnh.supabase.co; connect-src 'self' https://yksmqlinnirkimwimxnh.supabase.co https://cloud.xbotgo.net; media-src https: blob:; frame-src https://cloud.xbotgo.net; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://yksmqlinnirkimwimxnh.supabase.co; connect-src 'self' https://yksmqlinnirkimwimxnh.supabase.co; media-src https: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -607,23 +607,15 @@ async function videoPage(id){
       <label>연결된 경기</label><select id="vm"><option value="">(연결 안 함)</option></select>
       <button class="btn" id="vs">저장</button><button class="btn b-red" id="vh">이 영상 숨기기</button></div>` : ''}`);
   let ok = false;
-  try {
-    const r = await fetch('https://cloud.xbotgo.net/api/core/api/v1/video/share/h5/playback?sign=' + encodeURIComponent(v.sign || ''),
-      { headers: { 'BLINK-APP-MODEL':'WEB', 'BLINK-APP-LANG':'zh_CN' } }).then(x => x.json());
-    const mp4 = r && r.code == 200 && r.data && r.data.mp4Links && r.data.mp4Links[0] && r.data.mp4Links[0].url;
-    if(mp4 && /^https:\/\//.test(mp4)){
-      $('#vbox').innerHTML = '<video controls playsinline preload="metadata" style="position:absolute;inset:0;width:100%;height:100%;background:#000"></video>';
-      const ve = $('#vbox video'); ve.src = mp4; ok = true;
-      document.querySelectorAll('[data-sk]').forEach(b => b.onclick = () => { ve.currentTime = Math.max(0, ve.currentTime + Number(b.dataset.sk)) });
-      document.querySelectorAll('[data-rt]').forEach(b => b.onclick = () => { ve.playbackRate = Number(b.dataset.rt); document.querySelectorAll('[data-rt]').forEach(x => x.classList.toggle('b-ghost', x !== b)) });
-    }
-  } catch(e){}
-  if(!ok){   // 우리 재생기가 실패하면 XbotGo 화면을 영상 부분만 고정해서 보여줌
-    $('#vctl').style.display = 'none';
-    $('#vbox').innerHTML = safeUrl(v.link) != '#'
-      ? `<iframe src="${esc(v.link)}" scrolling="no" allow="autoplay; fullscreen" allowfullscreen style="position:absolute;left:0;top:-115px;width:100%;height:1400px;border:0"></iframe>`
-      : '<div class="empty" style="color:#fff">영상을 불러오지 못했습니다</div>';
+  const src = v.mp4 && /^https:\/\//.test(v.mp4) ? v.mp4 : (v.link && /^https:\/\/[^\s]+\.m3u8/.test(v.link) ? v.link : '');
+  if(src){
+    $('#vbox').innerHTML = '<video controls playsinline preload="metadata" style="position:absolute;inset:0;width:100%;height:100%;background:#000"></video>';
+    const ve = $('#vbox video'); ve.src = src; ok = true;
+    ve.addEventListener('error', () => { $('#vctl').style.display = 'none'; $('#vbox').innerHTML = '<div class="empty" style="color:#fff">영상을 불러오지 못했습니다<br><span style="font-size:12px">재생 주소를 갱신 중일 수 있습니다. 잠시 후 다시 시도하세요.</span></div>' }, { once: true });
+    document.querySelectorAll('[data-sk]').forEach(b => b.onclick = () => { ve.currentTime = Math.max(0, ve.currentTime + Number(b.dataset.sk)) });
+    document.querySelectorAll('[data-rt]').forEach(b => b.onclick = () => { ve.playbackRate = Number(b.dataset.rt); document.querySelectorAll('[data-rt]').forEach(x => x.classList.toggle('b-ghost', x !== b)) });
   }
+  if(!ok){ $('#vctl').style.display = 'none'; $('#vbox').innerHTML = '<div class="empty" style="color:#fff">재생 주소를 갱신 중입니다<br><span style="font-size:12px">자동 연동이 8시간마다 갱신합니다. 잠시 후 다시 시도하세요.</span></div>' }
   if(staff){
     const ms = (await apiQuiet('matches') || { list: [] }).list;
     $('#vm').innerHTML += ms.map(m => `<option value="${m.id}" ${m.id == v.match_id ? 'selected' : ''}>${fdt(m.starts_at).slice(0,10)} ${esc(m.title)}${m.opponent ? ' vs ' + esc(m.opponent) : ''}</option>`).join('');

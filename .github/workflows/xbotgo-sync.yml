@@ -1,8 +1,7 @@
 name: xbotgo-sync
 on:
   schedule:
-    - cron: '17 3 * * *'    # 중국 시간 11:17
-    - cron: '17 13 * * *'   # 중국 시간 21:17
+    - cron: '17 */8 * * *'   # 8시간마다 (재생 주소가 24시간 유효하므로 넉넉히 갱신)
   workflow_dispatch:
 permissions:
   contents: write

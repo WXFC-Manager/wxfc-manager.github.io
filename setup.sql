@@ -56,6 +56,8 @@ create table if not exists videos(
   id bigint generated always as identity primary key,
   doc_code text unique not null, sign text, link text, shot_at timestamptz, duration text default '', title text default '',
   match_id bigint references matches(id) on delete set null, hidden boolean default false, created_at timestamptz default now());
+alter table videos add column if not exists mp4 text;
+alter table videos add column if not exists mp4_until timestamptz;
 create table if not exists votes(
   poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
@@ -108,9 +110,12 @@ begin
   for it in select * from jsonb_array_elements(p_items) loop
     if coalesce(it->>'doc_code','') !~ '^[A-Za-z0-9_-]{8,64}$' then continue; end if;
     if coalesce(it->>'link','') <> '' and (it->>'link' !~ '^https://[^[:space:]"<>]+$' or length(it->>'link') > 600) then continue; end if;
-    insert into videos(doc_code, sign, link, shot_at, duration, title)
-      values(it->>'doc_code', left(it->>'sign',300), it->>'link', nullif(it->>'shot_at','')::timestamptz, left(coalesce(it->>'duration',''),20), left(coalesce(it->>'title',''),80))
+    if coalesce(it->>'mp4','') <> '' and (it->>'mp4' !~ '^https://[^[:space:]"<>]+$' or length(it->>'mp4') > 1200) then continue; end if;
+    insert into videos(doc_code, sign, link, shot_at, duration, title, mp4, mp4_until)
+      values(it->>'doc_code', left(it->>'sign',300), it->>'link', nullif(it->>'shot_at','')::timestamptz, left(coalesce(it->>'duration',''),20), left(coalesce(it->>'title',''),80),
+        nullif(it->>'mp4',''), nullif(it->>'mp4_until','')::timestamptz)
       on conflict(doc_code) do update set sign = coalesce(excluded.sign, videos.sign), link = coalesce(excluded.link, videos.link),
+        mp4 = coalesce(excluded.mp4, videos.mp4), mp4_until = coalesce(excluded.mp4_until, videos.mp4_until),
         shot_at = coalesce(excluded.shot_at, videos.shot_at), duration = coalesce(nullif(excluded.duration,''), videos.duration)
       returning id into vid;
     -- 같은 날, 경기 시작 2시간 전 ~ 5시간 후에 찍힌 영상은 그 경기에 자동 연결
@@ -329,7 +334,7 @@ begin
       'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
       'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
       'dues_pause', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues_pause x),
-      'videos',  (select coalesce(jsonb_agg(to_jsonb(x) - 'sign'),'[]'::jsonb) from videos x),
+      'videos',  (select coalesce(jsonb_agg(to_jsonb(x) - 'sign' - 'mp4' - 'link'),'[]'::jsonb) from videos x),
       'config',  (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from config x));
 
   when 'matches' then
@@ -376,12 +381,12 @@ begin
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
       select v.id, v.shot_at, v.duration, v.title, v.match_id, m.title match_title, m.opponent
       from videos v left join matches m on m.id=v.match_id
-      where not v.hidden and v.sign is not null
+      where not v.hidden and (v.sign is not null or v.mp4 is not null)
         and (nullif(p_d->>'match','') is null or v.match_id = (p_d->>'match')::bigint)
       order by v.shot_at desc nulls last limit coalesce(nullif(p_d->>'limit','')::int, 30)) t),'[]'::jsonb));
 
   when 'videoPlay' then
-    return (select jsonb_build_object('sign', v.sign, 'link', v.link, 'shot_at', v.shot_at, 'duration', v.duration, 'title', v.title,
+    return (select jsonb_build_object('mp4', case when v.mp4_until > now() + interval '10 minutes' then v.mp4 end, 'link', v.link, 'shot_at', v.shot_at, 'duration', v.duration, 'title', v.title,
         'match_id', v.match_id, 'match_title', m.title, 'opponent', m.opponent, 'starts_at', m.starts_at)
       from videos v left join matches m on m.id=v.match_id where v.id=(p_d->>'id')::bigint and not v.hidden);
 

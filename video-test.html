@@ -18,6 +18,10 @@ button,.btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;fo
 .sub{font-size:13px;color:var(--sub)}
 .player{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
 .player iframe,.player video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.player.fix iframe{height:1400px;top:calc(var(--off,0px) * -1)}
+.modes{display:flex;gap:8px;margin:0 0 10px}.modes button{margin:0;padding:10px;font-size:14px}
+.modes button.on{background:var(--green)}
+input[type=range]{width:100%}
 .ok{color:var(--green);font-weight:700}.bad{color:#B3261E;font-weight:700}
 ol{padding-left:20px;margin:6px 0}
 </style>
@@ -38,7 +42,12 @@ ol{padding-left:20px;margin:6px 0}
   <div class="card" id="box" style="display:none">
     <b>2. 사이트 안 재생 (A안)</b>
     <div class="sub" style="margin:4px 0 10px">아래 검은 칸 안에 영상(또는 XbotGo 화면)이 보이면 <span class="ok">성공</span>, 회색 오류 화면이나 빈 칸이면 <span class="bad">끼워 넣기 차단</span>입니다.</div>
-    <div class="player" id="p"></div>
+    <div class="modes"><button id="m1" class="on">① 영상만 고정</button><button id="m2" class="ghost">② 기존 방식</button></div>
+    <div class="player fix" id="p"></div>
+    <div id="adj" style="margin-top:10px">
+      <div class="sub">영상이 칸에 딱 맞지 않으면 아래 막대로 위치를 맞춰 보세요: <b id="ov">0</b>px</div>
+      <input type="range" id="off" min="0" max="300" value="0">
+    </div>
     <a class="btn ghost" id="open" target="_blank" rel="noopener noreferrer">비교용: 새 창에서 열기 (B안)</a>
   </div>
 
@@ -46,7 +55,8 @@ ol{padding-left:20px;margin:6px 0}
     <b>3. 결과 알려 주세요</b>
     <ol>
       <li>2번 검은 칸 안에서 <b>영상이 보이고 재생되는지</b></li>
-      <li>칸 안에서 <b>전체 화면</b>이 되는지</li>
+      <li>① 영상만 고정 방식에서 <b>스크롤 없이 영상이 칸에 딱 맞는지</b> (안 맞으면 막대로 맞춘 숫자)</li>
+      <li>재생·멈춤 버튼과 <b>전체 화면</b> 버튼이 보이고 눌리는지</li>
       <li><b>위챗 안</b>과 <b>휴대폰 브라우저</b> 두 곳에서 각각 어떤지</li>
     </ol>
     <div class="sub">화면을 캡처해서 보내 주시면 됩니다.</div>
@@ -76,11 +86,15 @@ $('#go').onclick = () => {
   const isFile = /\.(mp4|m3u8|mov|webm)(\?|$)/i.test(u.pathname + u.search);
   $('#p').innerHTML = isFile
     ? `<video controls playsinline preload="metadata" src="${esc(url)}"></video>`
-    : `<iframe src="${esc(url)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    : `<iframe src="${esc(url)}" scrolling="no" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   $('#open').href = url;
   $('#box').style.display = '';
   $('#box').scrollIntoView({ behavior:'smooth' });
 };
+const mode = fix => { $('#p').classList.toggle('fix', fix); $('#adj').style.display = fix ? '' : 'none';
+  $('#m1').className = fix ? 'on' : 'ghost'; $('#m2').className = fix ? 'ghost' : 'on'; };
+$('#m1').onclick = () => mode(true); $('#m2').onclick = () => mode(false);
+$('#off').oninput = e => { $('#p').style.setProperty('--off', e.target.value + 'px'); $('#ov').textContent = e.target.value };
 </script>
 </body>
 </html>

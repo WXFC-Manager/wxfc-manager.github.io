@@ -59,6 +59,7 @@ create table if not exists videos(
   match_id bigint references matches(id) on delete set null, hidden boolean default false, created_at timestamptz default now());
 alter table videos add column if not exists mp4 text;
 alter table videos add column if not exists mp4_until timestamptz;
+alter table videos add column if not exists link_manual boolean default false;  -- 영상 관리자가 직접 연결/해제한 영상은 자동 연결 안 함
 create table if not exists votes(
   poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
@@ -100,6 +101,16 @@ create or replace function _due(mid bigint, p_ym text) returns text language sql
     else '미납' end $$;
 
 -- XbotGo 자동 연동: GitHub 자동 작업이 '동기화 키'로만 호출 (키 원문은 GitHub 금고에만, 여기엔 해시만 저장)
+-- 경기 영상 자동 연결: 경기 시작 2시간 전 ~ 경기 종료 후 1일 안에 찍힌 영상 → 그 경기
+-- (경기 종료 시각은 따로 없어서 '시작 + 3시간'으로 봄. 여러 경기에 걸리면 영상 직전에 시작한 경기)
+create or replace function _vlink() returns void language sql security definer set search_path=public as $$
+  update videos v set match_id = (select m.id from matches m
+      where v.shot_at between m.starts_at - interval '2 hours' and m.starts_at + interval '3 hours' + interval '1 day'
+      order by m.starts_at desc limit 1)
+    where v.match_id is null and not coalesce(v.link_manual, false) and v.shot_at is not null;
+$$;
+revoke all on function _vlink() from public, anon, authenticated;
+
 create or replace function video_sync(p_key text, p_items jsonb default '[]', p_status jsonb default null) returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
 declare h text; it jsonb; n int := 0; vid bigint;
@@ -119,12 +130,9 @@ begin
         mp4 = coalesce(excluded.mp4, videos.mp4), mp4_until = coalesce(excluded.mp4_until, videos.mp4_until),
         shot_at = coalesce(excluded.shot_at, videos.shot_at), duration = coalesce(nullif(excluded.duration,''), videos.duration)
       returning id into vid;
-    -- 같은 날, 경기 시작 2시간 전 ~ 5시간 후에 찍힌 영상은 그 경기에 자동 연결
-    update videos v set match_id = (select m.id from matches m where v.shot_at between m.starts_at - interval '2 hours' and m.starts_at + interval '5 hours'
-        order by abs(extract(epoch from v.shot_at - m.starts_at)) limit 1)
-      where v.id = vid and v.match_id is null;
     n := n + 1;
   end loop;
+  perform _vlink();
   if p_status is not null then
     insert into config values('video_sync_status', p_status || jsonb_build_object('at', now(), 'saved', n))
       on conflict(k) do update set v=excluded.v;
@@ -379,6 +387,7 @@ begin
         deadline=nullif(p_d->>'deadline','')::timestamptz where id=xid;
       perform _notify(array(select member_id from attends where match_id=xid), '경기 정보 변경', trim(p_d->>'title'), '#/match/'||xid);
     end if;
+    perform _vlink();  -- 경기를 나중에 등록해도 이미 올라온 영상이 붙도록
     return jsonb_build_object('id', xid);
 
   when 'videos' then
@@ -407,6 +416,7 @@ begin
     if not vadm then return _err('영상 관리 권한이 없습니다 (회장에게 요청하세요)'); end if;
     update videos set title = coalesce(left(p_d->>'title',80), title),
       match_id = case when p_d ? 'match_id' then nullif(p_d->>'match_id','')::bigint else match_id end,
+      link_manual = link_manual or (p_d ? 'match_id' and nullif(p_d->>'match_id','')::bigint is distinct from match_id),
       hidden = coalesce((p_d->>'hidden')::boolean, hidden)
       where id=(p_d->>'id')::bigint;
     return jsonb_build_object('ok',true);
@@ -728,4 +738,5 @@ update storage.buckets set file_size_limit = 20971520, allowed_mime_types = arra
   'application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/haansofthwp','application/x-hwp','application/octet-stream'] where id = 'files';
 
+select _vlink();  -- 이미 있는 영상도 새 기준으로 연결
 select '설치 완료' as result;

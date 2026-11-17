@@ -1,5 +1,5 @@
 {
- "at": "2026-11-17T02:43:29.428Z",
+ "at": "2026-11-17T02:48:13.208Z",
  "ok": true,
  "step": "done",
  "found": 5,
@@ -39,12 +39,5 @@
   "downloadStatus"
  ],
  "error": "",
- "linkExpires": "none",
- "viewKeys": [
-  "duration",
-  "hlsLinks",
-  "mp4Links"
- ],
- "viewMp4": true,
- "mp4Valid": "24h"
+ "mp4": 5
 }

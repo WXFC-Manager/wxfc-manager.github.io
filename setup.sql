@@ -101,11 +101,11 @@ create or replace function _due(mid bigint, p_ym text) returns text language sql
     else '미납' end $$;
 
 -- XbotGo 자동 연동: GitHub 자동 작업이 '동기화 키'로만 호출 (키 원문은 GitHub 금고에만, 여기엔 해시만 저장)
--- 경기 영상 자동 연결: 경기 시작 2시간 전 ~ 경기 종료 후 1일 안에 찍힌 영상 → 그 경기
+-- 경기 영상 자동 연결: 경기 시작 ~ 경기 종료 후 1일 안에 찍힌 영상 → 그 경기 (경기 전 영상은 연결 안 함)
 -- (경기 종료 시각은 따로 없어서 '시작 + 3시간'으로 봄. 여러 경기에 걸리면 영상 직전에 시작한 경기)
 create or replace function _vlink() returns void language sql security definer set search_path=public as $$
   update videos v set match_id = (select m.id from matches m
-      where v.shot_at between m.starts_at - interval '2 hours' and m.starts_at + interval '3 hours' + interval '1 day'
+      where v.shot_at between m.starts_at and m.starts_at + interval '3 hours' + interval '1 day'
       order by m.starts_at desc limit 1)
     where v.match_id is null and not coalesce(v.link_manual, false) and v.shot_at is not null;
 $$;

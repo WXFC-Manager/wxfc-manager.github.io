@@ -52,6 +52,10 @@ create table if not exists matches(
 create table if not exists attends(
   match_id bigint references matches(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, status text, at timestamptz default now(), primary key(match_id, member_id));
+create table if not exists videos(
+  id bigint generated always as identity primary key,
+  doc_code text unique not null, sign text, link text, shot_at timestamptz, duration text default '', title text default '',
+  match_id bigint references matches(id) on delete set null, hidden boolean default false, created_at timestamptz default now());
 create table if not exists votes(
   poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
@@ -68,6 +72,7 @@ alter table config enable row level security;
 alter table reqs enable row level security;
 alter table polls enable row level security;
 alter table votes enable row level security;
+alter table videos enable row level security;
 alter table dues enable row level security;
 alter table dues_pause enable row level security;
 alter table matches enable row level security;
@@ -90,6 +95,36 @@ create or replace function _due(mid bigint, p_ym text) returns text language sql
     when coalesce((select dues_exempt from members where id=mid), false) then '면제대상'
     when exists(select 1 from dues_pause z where z.member_id=mid and p_ym between z.from_ym and z.to_ym) then '일시중단'
     else '미납' end $$;
+
+-- XbotGo 자동 연동: GitHub 자동 작업이 '동기화 키'로만 호출 (키 원문은 GitHub 금고에만, 여기엔 해시만 저장)
+create or replace function video_sync(p_key text, p_items jsonb default '[]', p_status jsonb default null) returns jsonb
+language plpgsql security definer set search_path=public, extensions as $$
+declare h text; it jsonb; n int := 0; vid bigint;
+begin
+  select v->>'hash' into h from config where k='sync_key';
+  if h is null or length(coalesce(p_key,'')) < 24 or encode(digest(p_key,'sha256'),'hex') <> h then
+    return jsonb_build_object('err','동기화 키가 맞지 않습니다'); end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 500 then return jsonb_build_object('err','잘못된 요청'); end if;
+  for it in select * from jsonb_array_elements(p_items) loop
+    if coalesce(it->>'doc_code','') !~ '^[A-Za-z0-9_-]{8,64}$' then continue; end if;
+    if coalesce(it->>'link','') <> '' and (it->>'link' !~ '^https://[^[:space:]"<>]+$' or length(it->>'link') > 600) then continue; end if;
+    insert into videos(doc_code, sign, link, shot_at, duration, title)
+      values(it->>'doc_code', left(it->>'sign',300), it->>'link', nullif(it->>'shot_at','')::timestamptz, left(coalesce(it->>'duration',''),20), left(coalesce(it->>'title',''),80))
+      on conflict(doc_code) do update set sign = coalesce(excluded.sign, videos.sign), link = coalesce(excluded.link, videos.link),
+        shot_at = coalesce(excluded.shot_at, videos.shot_at), duration = coalesce(nullif(excluded.duration,''), videos.duration)
+      returning id into vid;
+    -- 같은 날, 경기 시작 2시간 전 ~ 5시간 후에 찍힌 영상은 그 경기에 자동 연결
+    update videos v set match_id = (select m.id from matches m where v.shot_at between m.starts_at - interval '2 hours' and m.starts_at + interval '5 hours'
+        order by abs(extract(epoch from v.shot_at - m.starts_at)) limit 1)
+      where v.id = vid and v.match_id is null;
+    n := n + 1;
+  end loop;
+  if p_status is not null then
+    insert into config values('video_sync_status', p_status || jsonb_build_object('at', now(), 'saved', n))
+      on conflict(k) do update set v=excluded.v;
+  end if;
+  return jsonb_build_object('ok', true, 'saved', n, 'known', coalesce((select jsonb_agg(doc_code) from videos where sign is not null), '[]'::jsonb));
+end $$;
 
 create or replace function ping() returns text language sql as $$ select 'ok' $$;
 
@@ -294,6 +329,7 @@ begin
       'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
       'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
       'dues_pause', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues_pause x),
+      'videos',  (select coalesce(jsonb_agg(to_jsonb(x) - 'sign'),'[]'::jsonb) from videos x),
       'config',  (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from config x));
 
   when 'matches' then
@@ -335,6 +371,34 @@ begin
       perform _notify(array(select member_id from attends where match_id=xid), '경기 정보 변경', trim(p_d->>'title'), '#/match/'||xid);
     end if;
     return jsonb_build_object('id', xid);
+
+  when 'videos' then
+    return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
+      select v.id, v.shot_at, v.duration, v.title, v.match_id, m.title match_title, m.opponent
+      from videos v left join matches m on m.id=v.match_id
+      where not v.hidden and v.sign is not null
+        and (nullif(p_d->>'match','') is null or v.match_id = (p_d->>'match')::bigint)
+      order by v.shot_at desc nulls last limit coalesce(nullif(p_d->>'limit','')::int, 30)) t),'[]'::jsonb));
+
+  when 'videoPlay' then
+    return (select jsonb_build_object('sign', v.sign, 'link', v.link, 'shot_at', v.shot_at, 'duration', v.duration, 'title', v.title,
+        'match_id', v.match_id, 'match_title', m.title, 'opponent', m.opponent, 'starts_at', m.starts_at)
+      from videos v left join matches m on m.id=v.match_id where v.id=(p_d->>'id')::bigint and not v.hidden);
+
+  when 'videoEdit' then
+    if not staff then return _err('운영진만 바꿀 수 있습니다'); end if;
+    update videos set title = coalesce(left(p_d->>'title',80), title),
+      match_id = case when p_d ? 'match_id' then nullif(p_d->>'match_id','')::bigint else match_id end,
+      hidden = coalesce((p_d->>'hidden')::boolean, hidden)
+      where id=(p_d->>'id')::bigint;
+    return jsonb_build_object('ok',true);
+
+  when 'syncKey' then
+    if me.role <> '회장' then return _err('회장만 설정할 수 있습니다'); end if;
+    if coalesce(p_d->>'hash','') !~ '^[0-9a-f]{64}$' then return _err('잘못된 키'); end if;
+    insert into config values('sync_key', jsonb_build_object('hash', p_d->>'hash', 'at', now(), 'by', me.name))
+      on conflict(k) do update set v=excluded.v;
+    return jsonb_build_object('ok',true);
 
   when 'matchDel' then
     if not staff then return _err('운영진만 삭제할 수 있습니다'); end if;
@@ -549,6 +613,8 @@ begin
       'users', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
           select id,name,role,position,approved from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
       'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end,
+      'sync', case when me.role='회장' then jsonb_build_object('key_at', (select v->>'at' from config where k='sync_key'),
+          'status', (select v from config where k='video_sync_status'), 'count', (select count(*) from videos where sign is not null)) end,
       'storage', case when me.role='회장' then (select coalesce(sum((o.metadata->>'size')::bigint),0) from storage.objects o where o.bucket_id='files') end);
 
   when 'readAll' then
@@ -623,7 +689,7 @@ end $$;
 
 -- 권한: 앱이 부를 수 있는 함수는 4개뿐
 revoke execute on all functions in schema public from public, anon, authenticated;
-grant execute on function ping(), register(text,text), login(text,text), api(text,text,jsonb) to anon, authenticated;
+grant execute on function ping(), register(text,text), login(text,text), api(text,text,jsonb), video_sync(text,jsonb,jsonb) to anon, authenticated;
 
 -- 파일 저장소 (사진·회의자료·회칙, 파일당 20MB)
 insert into storage.buckets(id,name,public,file_size_limit)

@@ -1,0 +1,31 @@
+name: xbotgo-sync
+on:
+  schedule:
+    - cron: '17 3 * * *'    # 중국 시간 11:17
+    - cron: '17 13 * * *'   # 중국 시간 21:17
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: xbotgo-sync, cancel-in-progress: false }
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: XbotGo 영상 → 사이트 경기 일정
+        env:
+          XBOTGO_PHONE: ${{ secrets.XBOTGO_PHONE }}
+          XBOTGO_PW_MD5: ${{ secrets.XBOTGO_PW_MD5 }}
+          XBOTGO_PASSWORD: ${{ secrets.XBOTGO_PASSWORD }}
+          WXFC_SYNC_KEY: ${{ secrets.WXFC_SYNC_KEY }}
+        run: node scripts/xbotgo-sync.mjs
+      - name: 상태 기록 (숫자·오류 요약만)
+        if: always()
+        run: |
+          git config user.name sync-bot
+          git config user.email sync-bot@users.noreply.github.com
+          git add sync/status.json
+          git commit -m "XbotGo 동기화 상태" || exit 0
+          git pull --rebase origin main && git push origin HEAD:main || true

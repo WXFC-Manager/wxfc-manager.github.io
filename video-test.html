@@ -40,19 +40,20 @@ ol{padding-left:20px;margin:6px 0}
   </div>
 
   <div class="card" id="info" style="display:none"></div>
+  <div class="card" id="list" style="display:none"></div>
 
   <div class="card" id="box" style="display:none">
     <b>2. 사이트 안 재생 (A안)</b>
     <div class="sub" style="margin:4px 0 10px">아래 검은 칸 안에 영상(또는 XbotGo 화면)이 보이면 <span class="ok">성공</span>, 회색 오류 화면이나 빈 칸이면 <span class="bad">끼워 넣기 차단</span>입니다.</div>
-    <div class="modes"><button id="m3" class="on">③ 우리 재생기</button><button id="m1" class="ghost">① 영상만 고정</button><button id="m2" class="ghost">② 기존 방식</button></div>
+    <div class="modes"><button id="m1" class="on">① 영상만 고정</button><button id="m3" class="ghost">③ 우리 재생기</button><button id="m2" class="ghost">② 기존 방식</button></div>
     <div id="own" style="display:none"><div class="player"><video id="ov2" controls playsinline preload="metadata" style="background:#000"></video></div>
       <div class="ctl"><button data-s="-10">⏪ 10초</button><button data-s="10">10초 ⏩</button></div>
       <div class="ctl"><button data-r="0.5">0.5×</button><button data-r="1" class="on">1×</button><button data-r="1.5">1.5×</button><button data-r="2">2×</button></div>
       <div class="sub" id="ost" style="margin-top:8px"></div></div>
-    <div class="player fix" id="p"></div>
+    <div class="player fix" id="p" style="--off:115px"></div>
     <div id="adj" style="margin-top:10px">
-      <div class="sub">영상이 칸에 딱 맞지 않으면 아래 막대로 위치를 맞춰 보세요: <b id="ov">0</b>px</div>
-      <input type="range" id="off" min="0" max="300" value="0">
+      <div class="sub">영상이 칸에 딱 맞지 않으면 아래 막대로 위치를 맞춰 보세요: <b id="ov">115</b>px</div>
+      <input type="range" id="off" min="0" max="300" value="115">
     </div>
     <a class="btn ghost" id="open" target="_blank" rel="noopener noreferrer">비교용: 새 창에서 열기 (B안)</a>
   </div>
@@ -79,10 +80,29 @@ function expiry(url){
     return ms > 1e12 ? { region: parts[0], date: new Date(ms) } : null;
   } catch(e){ return null }
 }
+// 공유 문구 해석: "1. Start: 2026-11-15 09:18:29, Duration: 21:06  Link: https://cloud.xbotgo.net/share?...encyptcode=xxx=="
+// 링크는 encyptcode 값(영문·숫자·+/=)까지만 잘라 내고, 뒤에 붙은 글자는 버립니다.
+function parseShare(text){
+  const re = /https:\/\/cloud\.xbotgo\.net\/share\?[^\s"'<>]*?encyptcode=[A-Za-z0-9+\/]+=*/g, out = []; let m;
+  while((m = re.exec(text))){
+    const before = text.slice(Math.max(0, m.index - 160), m.index);
+    const st = before.match(/Start:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?)[^]*?Duration:\s*([\d:]+)/);
+    out.push({ url: m[0], start: st ? st[1] : '', dur: st ? st[2] : '' });
+  }
+  return out;
+}
+let VIDS = [];
 $('#go').onclick = () => {
-  const m = $('#u').value.match(/https:\/\/[^\s"'<>]+/);
-  if(!m) return alert('https:// 로 시작하는 링크를 붙여넣어 주세요');
-  const url = m[0], u = new URL(url);
+  VIDS = parseShare($('#u').value);
+  if(!VIDS.length){ const m = $('#u').value.match(/https:\/\/[^\s"'<>]+/); if(m) VIDS = [{ url:m[0], start:'', dur:'' }] }
+  if(!VIDS.length) return alert('XbotGo 공유 링크를 찾지 못했습니다');
+  $('#list').style.display = '';
+  $('#list').innerHTML = `<b>찾은 영상 ${VIDS.length}개</b>` + VIDS.map((v, i) => `<button class="${i ? 'ghost' : ''}" data-i="${i}" style="text-align:left">▶ ${i + 1}. ${esc(v.start || '시작 시각 없음')} · ${esc(v.dur || '-')}<br><span style="font-size:11px;font-weight:400;opacity:.7;word-break:break-all">${esc(v.url)}</span></button>`).join('');
+  $('#list').querySelectorAll('[data-i]').forEach(b => b.onclick = () => { $('#list').querySelectorAll('[data-i]').forEach(x => x.className = x === b ? '' : 'ghost'); play(VIDS[+b.dataset.i].url) });
+  play(VIDS[0].url);
+};
+function play(url){
+  const u = new URL(url);
   const ex = expiry(url), now = new Date();
   const days = ex ? Math.ceil((ex.date - now) / 864e5) : null;
   $('#info').style.display = '';
@@ -97,8 +117,8 @@ $('#go').onclick = () => {
   $('#open').href = url;
   $('#box').style.display = '';
   $('#box').scrollIntoView({ behavior:'smooth' });
-  ownFor = ''; mode(3);
-};
+  ownFor = ''; $('#u').dataset.cur = url; mode(document.querySelector('#m3.on') ? 3 : document.querySelector('#m2.on') ? 2 : 1);
+}
 const mode = m => { const own = m == 3, fix = m == 1;
   $('#own').style.display = own ? '' : 'none'; $('#p').style.display = own ? 'none' : ''; $('#adj').style.display = fix ? '' : 'none';
   $('#p').classList.toggle('fix', fix);
@@ -108,7 +128,7 @@ $('#m1').onclick = () => mode(1); $('#m2').onclick = () => mode(2); $('#m3').onc
 // ③ 우리 재생기: XbotGo 공유 페이지가 쓰는 방식 그대로 영상 주소(MP4, 24시간 유효)를 받아 재생
 let ownFor = '';
 async function loadOwn(){
-  const url = ($('#u').value.match(/https:\/\/[^\s"'<>]+/) || [])[0]; if(!url || ownFor == url) return;
+  const url = $('#u').dataset.cur; if(!url || ownFor == url) return;
   const v = $('#ov2'); $('#ost').textContent = '영상 주소를 받는 중…';
   try {
     const q = new URL(url).searchParams, p = atob(q.get('encyptcode') || '').split(':');

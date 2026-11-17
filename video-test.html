@@ -23,6 +23,10 @@ button,.btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;fo
 .modes button.on{background:var(--green)}
 .ctl{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.ctl button{flex:1;min-width:60px;margin:0;padding:10px 4px;font-size:14px;background:#EEF3F8;color:var(--navy)}
 .ctl button.on{background:var(--navy);color:#fff}
+.seek{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--sub)}
+.seek input{flex:1;-webkit-appearance:none;appearance:none;height:8px;border-radius:99px;background:linear-gradient(to right,var(--green) var(--pc,0%),#E3E8EE var(--pc,0%));outline:none;margin:0}
+.seek input::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--green);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.seek input::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--green)}
 input[type=range]{width:100%}
 .ok{color:var(--green);font-weight:700}.bad{color:#B3261E;font-weight:700}
 ol{padding-left:20px;margin:6px 0}
@@ -45,8 +49,9 @@ ol{padding-left:20px;margin:6px 0}
   <div class="card" id="box" style="display:none">
     <b>2. 사이트 안 재생 (A안)</b>
     <div class="sub" style="margin:4px 0 10px">아래 검은 칸 안에 영상(또는 XbotGo 화면)이 보이면 <span class="ok">성공</span>, 회색 오류 화면이나 빈 칸이면 <span class="bad">끼워 넣기 차단</span>입니다.</div>
-    <div class="modes"><button id="m1" class="on">① 영상만 고정</button><button id="m3" class="ghost">③ 우리 재생기</button><button id="m2" class="ghost">② 기존 방식</button></div>
+    <div class="modes"><button id="m3" class="on">③ 우리 재생기</button><button id="m1" class="ghost">① 영상만 고정</button><button id="m2" class="ghost">② 기존 방식</button></div>
     <div id="own" style="display:none"><div class="player"><video id="ov2" controls playsinline preload="metadata" style="background:#000"></video></div>
+      <div class="seek"><span id="tc">0:00</span><input type="range" id="sk" min="0" max="0" step="0.1" value="0"><span id="td">0:00</span></div>
       <div class="ctl"><button data-s="-10">⏪ 10초</button><button data-s="10">10초 ⏩</button></div>
       <div class="ctl"><button data-r="0.5">0.5×</button><button data-r="1" class="on">1×</button><button data-r="1.5">1.5×</button><button data-r="2">2×</button></div>
       <div class="sub" id="ost" style="margin-top:8px"></div></div>
@@ -62,7 +67,7 @@ ol{padding-left:20px;margin:6px 0}
     <b>3. 결과 알려 주세요</b>
     <ol>
       <li>2번 검은 칸 안에서 <b>영상이 보이고 재생되는지</b></li>
-      <li><b>③ 우리 재생기</b>에서 재생되는지, <b>10초 앞·뒤</b>와 <b>0.5× ~ 2× 속도</b> 버튼이 동작하는지</li>
+      <li><b>③ 우리 재생기</b>에서 재생되는지, <b>큰 재생바를 끌어서</b> 이동되는지, <b>10초 앞·뒤</b>와 <b>0.5× ~ 2× 속도</b> 버튼이 동작하는지</li>
       <li>① 영상만 고정 방식에서 <b>스크롤 없이 영상이 칸에 딱 맞는지</b> (안 맞으면 막대로 맞춘 숫자)</li>
       <li>재생·멈춤 버튼과 <b>전체 화면</b> 버튼이 보이고 눌리는지</li>
       <li><b>위챗 안</b>과 <b>휴대폰 브라우저</b> 두 곳에서 각각 어떤지</li>
@@ -117,7 +122,7 @@ function play(url){
   $('#open').href = url;
   $('#box').style.display = '';
   $('#box').scrollIntoView({ behavior:'smooth' });
-  ownFor = ''; $('#u').dataset.cur = url; mode(document.querySelector('#m3.on') ? 3 : document.querySelector('#m2.on') ? 2 : 1);
+  ownFor = ''; $('#u').dataset.cur = url; mode(document.querySelector('#m1.on') ? 1 : document.querySelector('#m2.on') ? 2 : 3);
 }
 const mode = m => { const own = m == 3, fix = m == 1;
   $('#own').style.display = own ? '' : 'none'; $('#p').style.display = own ? 'none' : ''; $('#adj').style.display = fix ? '' : 'none';
@@ -141,6 +146,15 @@ async function loadOwn(){
     v.src = mp4; ownFor = url; $('#ost').textContent = '✅ 영상 길이 ' + (r.data.duration || '') + ' · 재생 버튼을 누르세요';
   } catch(e){ $('#ost').innerHTML = '<span class="bad">실패: ' + esc(e.message) + '</span>' }
 }
+// 큰 재생바: 끌어서 이동
+const fmtT = s => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2,'0'); return h ? `${h}:${String(m).padStart(2,'0')}:${x}` : `${m}:${x}` };
+let dragging = false;
+const sk = $('#sk'), ov2 = $('#ov2');
+const paint = t => { const d = ov2.duration || 0; sk.style.setProperty('--pc', d ? (t / d * 100) + '%' : '0%'); $('#tc').textContent = fmtT(t) };
+ov2.addEventListener('loadedmetadata', () => { sk.max = ov2.duration || 0; $('#td').textContent = fmtT(ov2.duration) });
+ov2.addEventListener('timeupdate', () => { if(!dragging){ sk.value = ov2.currentTime; paint(ov2.currentTime) } });
+sk.addEventListener('input', () => { dragging = true; paint(+sk.value) });
+sk.addEventListener('change', () => { ov2.currentTime = +sk.value; dragging = false });
 document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const v = $('#ov2'); v.currentTime = Math.max(0, v.currentTime + Number(b.dataset.s)) });
 document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { $('#ov2').playbackRate = Number(b.dataset.r);
   document.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x === b)) });

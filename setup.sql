@@ -25,6 +25,17 @@ create table if not exists notis(
   to_id bigint references members(id) on delete cascade,
   title text, body text, link text, read boolean default false, created_at timestamptz default now());
 create table if not exists config(k text primary key, v jsonb);
+-- 공지 (여러 개, 📌 고정, 게시 종료일)
+create table if not exists notices(
+  id bigint generated always as identity primary key,
+  title text, body text default '', pinned boolean default false, until date,
+  by_name text, created_at timestamptz default now(), updated_at timestamptz);
+alter table notices enable row level security;
+-- 예전 홈 공지(글 하나)를 첫 공지로 옮김 (한 번만)
+insert into notices(title, body)
+  select left(split_part(trim(v->>'text'), E'\n', 1), 40), trim(v->>'text') from config
+  where k='notice' and coalesce(trim(v->>'text'),'') <> '' and not exists(select 1 from notices);
+delete from config where k='notice';
 create table if not exists reqs(
   id bigint generated always as identity primary key,
   by_id bigint, by_name text, title text, body text, status text default '접수',
@@ -206,7 +217,10 @@ begin
       'spend',  coalesce((select sum(amount) from pays where status='지급완료' and type='지출'),0),
       'month_spend', coalesce((select sum(amount) from pays where status='지급완료' and type='지출'
           and date_trunc('month', paid_at at time zone 'Asia/Shanghai') = date_trunc('month', now() at time zone 'Asia/Shanghai')),0),
-      'notice', (select v->>'text' from config where k='notice'),
+      'notices', coalesce((select jsonb_agg(t) from (select id, title, body, pinned, until, created_at from notices
+          where until is null or until >= (now() at time zone 'Asia/Shanghai')::date
+          order by pinned desc, created_at desc limit 3) t),'[]'::jsonb),
+      'notice_total', (select count(*) from notices),
       'todo', coalesce((select jsonb_agg(t) from (
           select 'pay' kind, id, title, status from pays
            where (me.role='회장' and status='회장결재') or (me.role='부회장' and status='부회장결재') or (me.role='총무' and status='지급대기')
@@ -344,6 +358,7 @@ begin
       'matches', (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from matches x),
       'attends', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from attends x),
       'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
+      'notices', (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from notices x),
       'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
       'dues_pause', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues_pause x),
       'videos',  (select coalesce(jsonb_agg(to_jsonb(x) - 'sign' - 'mp4' - 'link'),'[]'::jsonb) from videos x),
@@ -621,10 +636,29 @@ begin
     perform _notify(_ids(null), '회칙 갱신', coalesce(p_d->>'name','회칙'), '#/org');
     return jsonb_build_object('ok',true);
 
-  when 'setNotice' then
-    if me.role not in ('회장','총무') then return _err('회장·총무만 공지를 수정할 수 있습니다'); end if;
-    insert into config values('notice', jsonb_build_object('text',coalesce(p_d->>'text','')))
-      on conflict(k) do update set v=excluded.v;
+  when 'notices' then
+    return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (select id, title, body, pinned, until, by_name, created_at, updated_at,
+        (until is not null and until < (now() at time zone 'Asia/Shanghai')::date) ended
+        from notices order by pinned desc, created_at desc) t),'[]'::jsonb));
+
+  when 'noticeSave' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 공지를 쓸 수 있습니다'); end if;
+    if coalesce(trim(p_d->>'title'),'') = '' then return _err('제목을 입력하세요'); end if;
+    xid := nullif(p_d->>'id','')::bigint;
+    if xid is null then
+      insert into notices(title, body, pinned, until, by_name)
+        values(left(trim(p_d->>'title'),100), left(coalesce(p_d->>'body',''),5000), coalesce((p_d->>'pinned')::boolean,false), nullif(p_d->>'until','')::date, me.name)
+        returning id into xid;
+    else
+      update notices set title=left(trim(p_d->>'title'),100), body=left(coalesce(p_d->>'body',''),5000), pinned=coalesce((p_d->>'pinned')::boolean,false),
+        until=nullif(p_d->>'until','')::date, updated_at=now() where id=xid;
+    end if;
+    if coalesce((p_d->>'notify')::boolean,false) then perform _notify(_ids(null), '📢 공지', left(trim(p_d->>'title'),100), '#/notices'); end if;
+    return jsonb_build_object('ok',true,'id',xid);
+
+  when 'noticeDel' then
+    if me.role not in ('회장','총무') then return _err('회장·총무만 공지를 지울 수 있습니다'); end if;
+    delete from notices where id=(p_d->>'id')::bigint;
     return jsonb_build_object('ok',true);
 
   when 'setNote' then
@@ -637,7 +671,6 @@ begin
     return jsonb_build_object(
       'notis', coalesce((select jsonb_agg(t) from (select id,title,body,link,read,created_at from notis
           where to_id=me.id order by created_at desc limit 50) t),'[]'::jsonb),
-      'notice', (select v->>'text' from config where k='notice'),
       'users', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
           select id,name,role,position,approved,coalesce(video_admin,false) video_admin from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
       'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end,

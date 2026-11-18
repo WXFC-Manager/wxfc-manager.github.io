@@ -3,6 +3,7 @@ package cn.wxfc.manager;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -11,6 +12,7 @@ import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
@@ -21,6 +23,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /** 사이트(wxfc-manager.github.io)를 보여주는 화면. 다른 주소는 앱 안에서 열지 않습니다. */
@@ -28,6 +32,8 @@ public class MainActivity extends Activity {
   private static final int REQ_FILE = 1, REQ_NOTI = 2;
   private static final Pattern TOKEN = Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
   private static final Pattern LINK = Pattern.compile("^#/[A-Za-z0-9/_-]{0,64}$");
+  // 받을 수 있는 파일 이름: WXFC_로 시작, .csv 또는 .json 만
+  private static final Pattern FNAME = Pattern.compile("^WXFC_[\\p{L}\\p{N}._-]{1,80}\\.(csv|json)$");
   private WebView web;
   private ValueCallback<Uri[]> fileCb;
   private volatile String curUrl = "";
@@ -84,7 +90,7 @@ public class MainActivity extends Activity {
     web.setDownloadListener((url, ua, cd, mime, len) -> {
       Uri u = Uri.parse(url);
       if ("https".equals(u.getScheme())) openExternal(u);
-      else Toast.makeText(this, "백업·엑셀 파일은 브라우저에서 사이트를 열어 받아 주세요", Toast.LENGTH_LONG).show();
+      else Toast.makeText(this, "앱을 최신 버전으로 업데이트해 주세요", Toast.LENGTH_LONG).show();
     });
 
     String link = getIntent().getStringExtra("link");
@@ -157,6 +163,36 @@ public class MainActivity extends Activity {
       if (!TOKEN.matcher(t).matches()) return;
       if (!t.equals(Store.token(MainActivity.this))) Store.setToken(MainActivity.this, t);
       runOnUiThread(() -> PollService.start(MainActivity.this));
+    }
+
+    /** 백업(.json)·엑셀(.csv)을 휴대폰 '다운로드/WXFC' 폴더에 저장하고 보내기 창을 띄움. 우리 사이트에서 온 호출만 받습니다. */
+    @JavascriptInterface public boolean saveFile(String name, String text) {
+      if (!isOurs(Uri.parse(curUrl)) || name == null || text == null || !FNAME.matcher(name).matches() || text.length() > 30_000_000) return false;
+      String mime = name.endsWith(".csv") ? "text/csv" : "application/json";
+      if (Build.VERSION.SDK_INT < 29) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "안드로이드 10 이상에서만 앱 저장이 됩니다. 브라우저에서 받아 주세요", Toast.LENGTH_LONG).show());
+        return false;
+      }
+      try {
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+        v.put(MediaStore.Downloads.MIME_TYPE, mime);
+        v.put(MediaStore.Downloads.RELATIVE_PATH, "Download/WXFC");
+        Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+        if (u == null) throw new Exception("insert");
+        try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(text.getBytes(StandardCharsets.UTF_8)); }
+        runOnUiThread(() -> {
+          Toast.makeText(MainActivity.this, "저장했습니다: 다운로드/WXFC/" + name, Toast.LENGTH_LONG).show();
+          try {
+            Intent send = new Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(send, "파일 보내기 (위챗 등) · 닫으면 저장만"));
+          } catch (Exception ignored) { }
+        });
+        return true;
+      } catch (Exception e) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "저장하지 못했습니다", Toast.LENGTH_LONG).show());
+        return false;
+      }
     }
   }
 }

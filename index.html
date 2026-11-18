@@ -175,6 +175,12 @@ const vAdmin = () => ME && (ME.role == '회장' || !!ME.video_admin);  // 영상
 const tag = s => `<span class="tag t-${CLS[s]||'wait'}">${esc(s)}</span>`;
 const fdt = s => { if(!s) return ''; const d = new Date(s); const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}` };
+// 파일 받기: 운영진 앱(WXFC 앱) 안이면 앱이 휴대폰 '다운로드/WXFC'에 저장, 아니면 브라우저 다운로드
+function saveFile(name, text, mime){
+  if(window.WXFCApp && WXFCApp.saveFile){ try { if(WXFCApp.saveFile(name, text)) return } catch(e){} }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; a.click();
+  if(/MicroMessenger/i.test(navigator.userAgent)) toast('위챗 안에서는 저장이 안 될 수 있어요. 브라우저에서 열어 주세요');
+}
 const card = (t, body, right='') => `<div class="card"><div class="ct"><span>${t}</span>${right}</div>${body}</div>`;
 const empty = t => `<div class="empty">${t}</div>`;
 // 화면 그리기: 하위 화면이면 맨 위에 '‹ 뒤로', 스크롤은 route() 가 정한 위치(뒤로 가기면 보던 위치)
@@ -666,8 +672,7 @@ async function reportPage(){
     const rows = [['구분','제목','항목','금액','신청자','지급일'], ...r.list.map(p => [p.type, p.title, p.category, p.amount, p.applicant, fdt(p.t)]),
       [], ['전기 이월','','',r.carry], ['기간 수입','','',r.income], ['기간 지출','','',r.spend], ['기말 잔액','','',end]];
     const csv = '\ufeff' + rows.map(x => x.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `WXFC_결산_${per.replace(/ /g,'_')}.csv`; a.click();
-    toast('위챗 안에서는 저장이 안 될 수 있어요. 브라우저에서 열어 주세요');
+    saveFile(`WXFC_결산_${per.replace(/ /g,'_')}.csv`, csv, 'text/csv');
   };
 }
 
@@ -1000,8 +1005,7 @@ async function mePage(sec){
         <div class="hint" style="margin-top:8px">회원·결제·회의·투표·일정·요청·회비 기록을 파일 하나로 휴대폰에 저장합니다 (비밀번호 제외). 한 달에 한 번 받아서 위챗 '파일 전송 도우미'나 클라우드에 보관하세요. 위챗 안에서는 저장이 안 될 수 있으니 브라우저로 여세요.</div>`));
     $('#bk').onclick = async () => {
       const b = await api('backup'), d = new Date().toISOString().slice(0,10);
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b, null, 1)], {type:'application/json'}));
-      a.download = `WXFC_백업_${d}.json`; a.click(); toast('백업 파일을 저장했습니다');
+      saveFile(`WXFC_백업_${d}.json`, JSON.stringify(b, null, 1), 'application/json'); if(!window.WXFCApp) toast('백업 파일을 저장했습니다');
     };
     return;
   }
@@ -1040,8 +1044,7 @@ async function mePw(){ const v = await ask('비밀번호 변경', { inputs:[{ ph
 async function meCsv(){ const l = (await api('export')).list;
   const rows = [['번호','구분','제목','항목','금액','상태','신청자','사유','신청일','지급일'], ...l.map(p => [p.id,p.type,p.title,p.category,p.amount,p.status,p.applicant,p.reason,fdt(p.created_at),fdt(p.paid_at)])];
   const csv = '﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `WXFC_결제내역_${new Date().toISOString().slice(0,10)}.csv`; a.click();
-  toast('위챗 안에서는 저장이 안 될 수 있어요. 브라우저에서 열어 주세요') }
+  saveFile(`WXFC_결제내역_${new Date().toISOString().slice(0,10)}.csv`, csv, 'text/csv') }
 async function setU(id, d){ await api('setUser', { id, ...d }); toast('변경 완료'); route() }
 async function delU(id, n){ if(!await ask(`${n}님을 삭제할까요?`, { ok:'삭제', danger:true })) return; await api('delUser', { id }); toast('삭제 완료'); route() }
 async function more(id, n, pos){

@@ -516,12 +516,12 @@ async function home(){
   const head = h.todo.length ? `처리할 일이<br><em>${h.todo.length}건</em> 있어요`
     : openN ? `<em>${openN.kind == 'election' ? '임원 선거' : '참가 신청'}</em>이<br>열려 있어요`
     : nx && days != null && days <= 7 ? `${days == 0 ? '오늘' : days == 1 ? '내일' : W[new Date(nx.starts_at).getDay()] + '요일에'}<br><em>경기</em>가 있어요`
-    : '오늘도<br><em>즐거운 축구</em> 해요';
+    : '';
   const t0 = h.todo[0];
   const Q = [['wallet','회비','#/dues'],['chart','결산','#/report'],['video','영상','#/videos'],['cal','일정','#/matches'],
              ['chat','요청사항','#/reqs'],['people','조직·회칙','#/org'],['mega','공지','#/notices'],['book','설명서','manual.html']];
   V(`<div class="top"><img src="${LOGO}" alt=""><b>${CLUB} 축구회</b><a class="bell" href="#/me/noti" aria-label="알림">${ico('bell')}${$('#badge').style.display == 'none' ? '' : '<i></i>'}</a></div>
-    <div class="hello"><div class="s">${esc(ME.name)}님, 안녕하세요</div><h1>${head}</h1></div>
+    <div class="hello"><div class="s">${esc(ME.name)}님, 안녕하세요</div>${head ? `<h1>${head}</h1>` : ''}</div>
     ${t0 ? `<a class="todo" href="#/${t0.kind}/${t0.id}"><span class="n">${h.todo.length}</span><span class="grow"><b>처리할 결재가 있어요</b><div class="s">${esc(t0.title)}${h.todo.length > 1 ? ` 외 ${h.todo.length - 1}건` : ''}</div></span>${ico('chev', 18)}</a>` : ''}
     ${nx ? card('다음 경기', `<a href="#/match/${nx.id}" style="display:flex;gap:14px;align-items:center;margin-top:6px">
         <div class="date" style="width:60px;padding:9px 0;background:#191F28;color:#fff"><div class="dm" style="color:#C9CED6">${days == 0 ? '오늘' : 'D-' + days}</div><div class="dd">${new Date(nx.starts_at).getDate()}</div></div>

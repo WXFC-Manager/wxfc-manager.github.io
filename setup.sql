@@ -36,6 +36,51 @@ insert into notices(title, body)
   select left(split_part(trim(v->>'text'), E'\n', 1), 40), trim(v->>'text') from config
   where k='notice' and coalesce(trim(v->>'text'),'') <> '' and not exists(select 1 from notices);
 delete from config where k='notice';
+-- 공지 종류: notice(일반) · signup(참가 신청) · election(임원 선거)
+alter table notices add column if not exists kind text default 'notice';
+alter table notices add column if not exists memo_label text;
+alter table notices add column if not exists signup_until timestamptz;
+alter table notices add column if not exists closed boolean default false;
+alter table notices add column if not exists election_id bigint;
+-- 참가 신청 (接龙). member_id 없음 = 운영진 대리 등록
+create table if not exists signups(
+  id bigint generated always as identity primary key,
+  notice_id bigint references notices(id) on delete cascade,
+  member_id bigint references members(id) on delete set null,
+  name text not null, memo text default '', by_name text, created_at timestamptz default now());
+create unique index if not exists signups_one on signups(notice_id, member_id) where member_id is not null;
+alter table signups enable row level security;
+-- 임원 선거: 추천(rec) → 후보 확정 → 익명 투표(vote) → 결과 (동점이면 재투표, round 증가)
+create table if not exists elections(
+  id bigint generated always as identity primary key,
+  title text, positions text[] default array['회장','부회장','감독'],
+  rec_until timestamptz, vote_until timestamptz, phase text default 'rec', round int default 0,
+  apply_on date, applied boolean default false, created_at timestamptz default now());
+create table if not exists nominations(
+  id bigint generated always as identity primary key,
+  election_id bigint references elections(id) on delete cascade,
+  member_id bigint references members(id) on delete cascade,
+  position text, candidate_id bigint references members(id) on delete cascade,
+  reason text default '', named boolean default false, created_at timestamptz default now(),
+  unique(election_id, member_id, position));
+create table if not exists candidates(
+  election_id bigint references elections(id) on delete cascade, round int, position text,
+  candidate_id bigint references members(id) on delete cascade,
+  primary key(election_id, round, position, candidate_id));
+-- 익명 투표: 표는 개인 기록 없이 '집계 숫자'만 올림 (누가 무엇을 골랐는지 저장하지 않음)
+create table if not exists tallies(
+  election_id bigint references elections(id) on delete cascade, round int, position text, choice text, n int default 0,
+  primary key(election_id, round, position, choice));
+-- 투표 여부만 기록 (중복 투표 방지). 무엇을 골랐는지는 없음
+create table if not exists voted(
+  election_id bigint references elections(id) on delete cascade, round int,
+  member_id bigint references members(id) on delete cascade,
+  primary key(election_id, round, member_id));
+alter table elections enable row level security;
+alter table nominations enable row level security;
+alter table candidates enable row level security;
+alter table tallies enable row level security;
+alter table voted enable row level security;
 create table if not exists reqs(
   id bigint generated always as identity primary key,
   by_id bigint, by_name text, title text, body text, status text default '접수',
@@ -49,7 +94,8 @@ alter table members add column if not exists fail_count int default 0;
 alter table members add column if not exists lock_until timestamptz;
 alter table members add column if not exists dues_exempt boolean default false;
 alter table members add column if not exists dues_note text default '';
-alter table members add column if not exists video_admin boolean default false;  -- 영상 관리 권한 (회장이 지정)
+alter table members add column if not exists video_admin boolean default false;
+alter table members add column if not exists photo text;  -- 프로필 사진 주소 (없으면 축구회 로고)  -- 영상 관리 권한 (회장이 지정)
 create table if not exists dues_pause(
   id bigint generated always as identity primary key, member_id bigint references members(id) on delete cascade,
   from_ym text, to_ym text, reason text default '', by_name text, created_at timestamptz default now());
@@ -155,16 +201,18 @@ end $$;
 
 create or replace function ping() returns text language sql as $$ select 'ok' $$;
 
-create or replace function register(p_name text, p_pw text) returns jsonb
+drop function if exists register(text,text);
+create or replace function register(p_name text, p_pw text, p_photo text default null) returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
 declare n int; m members;
 begin
   p_name := trim(coalesce(p_name,''));
+  if not _photo_ok(nullif(p_photo,'')) then p_photo := null; end if;
   if p_name = '' or length(coalesce(p_pw,'')) < 4 then return _err('이름과 비밀번호(4자 이상)를 입력하세요'); end if;
   if exists(select 1 from members where name = p_name) then return _err('이미 등록된 이름입니다'); end if;
   select count(*) into n from members;
-  insert into members(name,pw,role,approved)
-    values(p_name, crypt(p_pw, gen_salt('bf')), case when n=0 then '회장' else '회원' end, n=0) returning * into m;
+  insert into members(name,pw,role,approved,photo)
+    values(p_name, crypt(p_pw, gen_salt('bf')), case when n=0 then '회장' else '회원' end, n=0, nullif(p_photo,'')) returning * into m;
   if n > 0 then perform _notify(_ids(array['회장']), '가입 신청', m.name||'님이 가입을 신청했습니다', '#/me'); end if;
   return jsonb_build_object('ok',true,'approved',m.approved);
 end $$;
@@ -196,6 +244,82 @@ begin
   return jsonb_build_object('token',t);
 end $$;
 
+-- 프로필 사진 주소는 우리 저장소 주소만 허용
+create or replace function _photo_ok(u text) returns boolean language sql immutable as $$
+  select u is null or (length(u) < 300 and u ~ '^https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/files/[A-Za-z0-9/_.-]+$') $$;
+
+-- 선거 단계 계산: rec(추천 중) · confirm(추천 마감, 회장 확정 대기) · vote(투표 중) · result(결과)
+create or replace function _ephase(e elections) returns text language sql stable as $$
+  select case when e.phase='rec' and (e.rec_until is null or e.rec_until > now()) then 'rec'
+              when e.phase='rec' then 'confirm'
+              when e.phase='vote' and e.vote_until > now() then 'vote'
+              else 'result' end $$;
+
+-- 직책별 결과 (가장 최근 투표 차수 기준). 후보 1명은 찬성 > 반대 일 때 당선, 기권은 승패에 안 셈
+create or replace function _eresult(eid bigint) returns jsonb language plpgsql stable security definer set search_path=public as $$
+declare e elections; pos text; r int; res jsonb := '[]'; rws jsonb; top int; ntop int; one boolean; win bigint; st text; yn int; nn int;
+begin
+  select * into e from elections where id=eid;
+  foreach pos in array e.positions loop
+    select max(c.round) into r from candidates c where c.election_id=eid and c.position=pos;
+    if r is null then res := res || jsonb_build_array(jsonb_build_object('position',pos,'status','none','rows','[]'::jsonb)); continue; end if;
+    one := (select count(*) from candidates c where c.election_id=eid and c.round=r and c.position=pos) = 1;
+    select coalesce(jsonb_agg(jsonb_build_object('choice',t.choice,'n',t.n,'name',m.name,'photo',m.photo) order by t.n desc, t.choice),'[]') into rws
+      from tallies t left join members m on m.id::text = t.choice
+     where t.election_id=eid and t.round=r and t.position=pos;
+    win := null;
+    if one then
+      select coalesce(sum(t.n) filter (where t.choice ~ '^\d+$'),0), coalesce(sum(t.n) filter (where t.choice='no'),0) into yn, nn
+        from tallies t where t.election_id=eid and t.round=r and t.position=pos;
+      if yn > nn then select c.candidate_id into win from candidates c where c.election_id=eid and c.round=r and c.position=pos; end if;
+      st := case when win is not null then 'win' else 'rejected' end;
+    else
+      select max(t.n) into top from tallies t where t.election_id=eid and t.round=r and t.position=pos and t.choice ~ '^\d+$';
+      select count(*) into ntop from tallies t where t.election_id=eid and t.round=r and t.position=pos and t.choice ~ '^\d+$' and t.n=top;
+      if coalesce(top,0)=0 then st := 'none';
+      elsif ntop > 1 then st := 'tie';
+      else st := 'win'; select t.choice::bigint into win from tallies t where t.election_id=eid and t.round=r and t.position=pos and t.choice ~ '^\d+$' and t.n=top; end if;
+    end if;
+    res := res || jsonb_build_array(jsonb_build_object('position',pos,'round',r,'single',one,'rows',rws,'status',st,'winner',win,
+      'winner_name',(select name from members where id=win),'winner_photo',(select photo from members where id=win)));
+  end loop;
+  return res;
+end $$;
+
+-- 취임일(apply_on, 기본 다음 해 1월 1일)이 되면 당선자 직책을 자동으로 바꿈. 동점이 남아 있으면 재투표 끝날 때까지 보류
+create or replace function _elect_apply() returns void language plpgsql security definer set search_path=public as $$
+declare e elections; x jsonb;
+begin
+  for e in select * from elections where not applied and phase='vote' and vote_until < now()
+             and apply_on <= (now() at time zone 'Asia/Shanghai')::date loop
+    if exists(select 1 from jsonb_array_elements(_eresult(e.id)) r where r->>'status' = 'tie') then continue; end if;
+    -- 아래 직책부터 적용 → 한 사람이 두 직책에 당선되면 높은 직책(회장)이 남음
+    for x in select v from jsonb_array_elements(_eresult(e.id)) with ordinality as t(v, i) order by i desc loop
+      if x->>'status' = 'win' then
+        update members set role='회원' where role = x->>'position' and id <> (x->>'winner')::bigint;
+        update members set role = x->>'position' where id = (x->>'winner')::bigint;
+        perform _notify(array[(x->>'winner')::bigint], '임원 취임', (x->>'position')||'(으)로 취임했습니다', '#/me');
+      end if;
+    end loop;
+    update elections set applied=true where id=e.id;
+  end loop;
+exception when others then null;  -- 자동 적용에 문제가 생겨도 사이트 사용은 막지 않음
+end $$;
+revoke all on function _elect_apply() from public, anon, authenticated;
+
+-- 공지 한 줄 (홈·목록 공통): 참가 신청·선거 상태까지 포함
+create or replace function _nrow(n notices, mid bigint, staff boolean) returns jsonb language sql stable security definer set search_path=public as $$
+  select to_jsonb(n) || jsonb_build_object(
+    'ended', (n.until is not null and n.until < (now() at time zone 'Asia/Shanghai')::date),
+    'open', (n.kind='signup' and not coalesce(n.closed,false) and (n.signup_until is null or n.signup_until > now())),
+    'mine', exists(select 1 from signups s where s.notice_id=n.id and s.member_id=mid),
+    'cnt', case when staff then (select count(*) from signups s where s.notice_id=n.id) end,
+    'el', (select jsonb_build_object('phase', _ephase(e), 'rec_until', e.rec_until, 'vote_until', e.vote_until,
+             'done', case _ephase(e) when 'rec' then exists(select 1 from nominations x where x.election_id=e.id and x.member_id=mid)
+                                     when 'vote' then exists(select 1 from voted v where v.election_id=e.id and v.round=e.round and v.member_id=mid)
+                                     else false end)
+           from elections e where e.id=n.election_id)) $$;
+
 create or replace function api(p_token text, p_action text, p_d jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
 declare me members; p pays; mt meets; ok boolean; n int; xid bigint; ns text; staff boolean; vadm boolean; pid bigint; amt numeric;
@@ -206,6 +330,7 @@ begin
   staff := me.role in ('회장','부회장','총무','감독','코치');
   vadm := me.role = '회장' or coalesce(me.video_admin, false);  -- 영상 관리: 회장 + 회장이 지정한 사람
   p_d := coalesce(p_d,'{}');
+  perform _elect_apply();
 
   case p_action
   when 'me' then
@@ -217,9 +342,9 @@ begin
       'spend',  coalesce((select sum(amount) from pays where status='지급완료' and type='지출'),0),
       'month_spend', coalesce((select sum(amount) from pays where status='지급완료' and type='지출'
           and date_trunc('month', paid_at at time zone 'Asia/Shanghai') = date_trunc('month', now() at time zone 'Asia/Shanghai')),0),
-      'notices', coalesce((select jsonb_agg(t) from (select id, title, body, pinned, until, created_at from notices
+      'notices', coalesce((select jsonb_agg(_nrow(nt, me.id, staff) order by nt.pinned desc, nt.created_at desc) from (select * from notices
           where until is null or until >= (now() at time zone 'Asia/Shanghai')::date
-          order by pinned desc, created_at desc limit 3) t),'[]'::jsonb),
+          order by pinned desc, created_at desc limit 4) nt),'[]'::jsonb),
       'notice_total', (select count(*) from notices),
       'todo', coalesce((select jsonb_agg(t) from (
           select 'pay' kind, id, title, status from pays
@@ -359,6 +484,8 @@ begin
       'attends', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from attends x),
       'reqs',    (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from reqs x),
       'notices', (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from notices x),
+      'signups', (select coalesce(jsonb_agg(to_jsonb(x) order by x.id),'[]'::jsonb) from signups x),
+      'elections', (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('result', _eresult(x.id)) order by x.id),'[]'::jsonb) from elections x),
       'dues',    (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues x),
       'dues_pause', (select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) from dues_pause x),
       'videos',  (select coalesce(jsonb_agg(to_jsonb(x) - 'sign' - 'mp4' - 'link'),'[]'::jsonb) from videos x),
@@ -626,7 +753,7 @@ begin
 
   when 'org' then
     return jsonb_build_object(
-      'users', coalesce((select jsonb_agg(t) from (select id,name,role,position from members where approved order by id) t),'[]'::jsonb),
+      'users', coalesce((select jsonb_agg(t) from (select id,name,role,position,photo from members where approved order by id) t),'[]'::jsonb),
       'rules', (select v from config where k='rules'));
 
   when 'setRules' then
@@ -637,28 +764,187 @@ begin
     return jsonb_build_object('ok',true);
 
   when 'notices' then
-    return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (select id, title, body, pinned, until, by_name, created_at, updated_at,
-        (until is not null and until < (now() at time zone 'Asia/Shanghai')::date) ended
-        from notices order by pinned desc, created_at desc) t),'[]'::jsonb));
+    return jsonb_build_object('list', coalesce((select jsonb_agg(_nrow(nt, me.id, staff) order by nt.pinned desc, nt.created_at desc) from notices nt),'[]'::jsonb));
 
   when 'noticeSave' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 공지를 쓸 수 있습니다'); end if;
     if coalesce(trim(p_d->>'title'),'') = '' then return _err('제목을 입력하세요'); end if;
     xid := nullif(p_d->>'id','')::bigint;
     if xid is null then
-      insert into notices(title, body, pinned, until, by_name)
-        values(left(trim(p_d->>'title'),100), left(coalesce(p_d->>'body',''),5000), coalesce((p_d->>'pinned')::boolean,false), nullif(p_d->>'until','')::date, me.name)
+      insert into notices(title, body, pinned, until, by_name, kind, memo_label, signup_until)
+        values(left(trim(p_d->>'title'),100), left(coalesce(p_d->>'body',''),5000), coalesce((p_d->>'pinned')::boolean,false), nullif(p_d->>'until','')::date, me.name,
+          case when coalesce((p_d->>'signup')::boolean,false) then 'signup' else 'notice' end,
+          nullif(left(trim(coalesce(p_d->>'memo_label','')),30),''), nullif(p_d->>'signup_until','')::timestamptz)
         returning id into xid;
     else
       update notices set title=left(trim(p_d->>'title'),100), body=left(coalesce(p_d->>'body',''),5000), pinned=coalesce((p_d->>'pinned')::boolean,false),
-        until=nullif(p_d->>'until','')::date, updated_at=now() where id=xid;
+        until=nullif(p_d->>'until','')::date, updated_at=now(),
+        memo_label=case when kind='signup' then nullif(left(trim(coalesce(p_d->>'memo_label','')),30),'') else memo_label end,
+        signup_until=case when kind='signup' then nullif(p_d->>'signup_until','')::timestamptz else signup_until end
+       where id=xid;
     end if;
-    if coalesce((p_d->>'notify')::boolean,false) then perform _notify(_ids(null), '📢 공지', left(trim(p_d->>'title'),100), '#/notices'); end if;
+    if coalesce((p_d->>'notify')::boolean,false) then perform _notify(_ids(null), '📢 공지', left(trim(p_d->>'title'),100), '#/notice/'||xid); end if;
     return jsonb_build_object('ok',true,'id',xid);
 
   when 'noticeDel' then
     if me.role not in ('회장','총무') then return _err('회장·총무만 공지를 지울 수 있습니다'); end if;
+    delete from elections where id=(select election_id from notices where id=(p_d->>'id')::bigint);
     delete from notices where id=(p_d->>'id')::bigint;
+    return jsonb_build_object('ok',true);
+
+  -- ───── 참가 신청 ─────
+  when 'notice' then
+    return jsonb_build_object('n', (select _nrow(nt, me.id, staff) from notices nt where nt.id=(p_d->>'id')::bigint),
+      'my', (select to_jsonb(s) from signups s where s.notice_id=(p_d->>'id')::bigint and s.member_id=me.id));
+
+  when 'signup' then
+    if not exists(select 1 from notices nt where nt.id=(p_d->>'id')::bigint and nt.kind='signup' and not coalesce(nt.closed,false)
+                  and (nt.signup_until is null or nt.signup_until > now())) then return _err('신청이 마감되었습니다'); end if;
+    insert into signups(notice_id, member_id, name, memo) values((p_d->>'id')::bigint, me.id, me.name, left(coalesce(p_d->>'memo',''),50))
+      on conflict (notice_id, member_id) where member_id is not null do update set memo=excluded.memo;
+    return jsonb_build_object('ok',true);
+
+  when 'signupCancel' then
+    if not exists(select 1 from notices nt where nt.id=(p_d->>'id')::bigint and not coalesce(nt.closed,false)
+                  and (nt.signup_until is null or nt.signup_until > now())) then return _err('마감된 신청은 취소할 수 없습니다'); end if;
+    delete from signups where notice_id=(p_d->>'id')::bigint and member_id=me.id;
+    return jsonb_build_object('ok',true);
+
+  when 'signupList' then
+    if not staff then return _err('운영진만 볼 수 있습니다'); end if;
+    return jsonb_build_object('n', (select _nrow(nt, me.id, staff) from notices nt where nt.id=(p_d->>'id')::bigint),
+      'list', coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'name',s.name,'memo',s.memo,'photo',m.photo,'proxy',s.member_id is null,'at',s.created_at) order by s.created_at, s.id)
+        from signups s left join members m on m.id=s.member_id where s.notice_id=(p_d->>'id')::bigint),'[]'::jsonb));
+
+  when 'signupAdd' then
+    if not staff then return _err('운영진만 대리 등록할 수 있습니다'); end if;
+    if coalesce(trim(p_d->>'name'),'') = '' then return _err('이름을 입력하세요'); end if;
+    insert into signups(notice_id, name, memo, by_name) values((p_d->>'id')::bigint, left(trim(p_d->>'name'),30), left(coalesce(p_d->>'memo',''),50), me.name);
+    return jsonb_build_object('ok',true);
+
+  when 'signupDel' then
+    if not staff then return _err('운영진만 지울 수 있습니다'); end if;
+    delete from signups where id=(p_d->>'sid')::bigint;
+    return jsonb_build_object('ok',true);
+
+  when 'signupClose' then
+    if not staff then return _err('운영진만 마감할 수 있습니다'); end if;
+    update notices set closed=coalesce((p_d->>'closed')::boolean,true) where id=(p_d->>'id')::bigint and kind='signup';
+    return jsonb_build_object('ok',true);
+
+  -- ───── 임원 선거 ─────
+  when 'electionNew' then
+    if me.role <> '회장' then return _err('회장만 선거를 시작할 수 있습니다'); end if;
+    if nullif(p_d->>'rec_until','') is null then return _err('추천 마감을 정하세요'); end if;
+    insert into elections(title, rec_until, apply_on)
+      values(coalesce(nullif(trim(p_d->>'title'),''), extract(year from now() at time zone 'Asia/Shanghai')::int + 1 || '년 임원 선거'),
+             (p_d->>'rec_until')::timestamptz,
+             coalesce(nullif(p_d->>'apply_on','')::date, make_date(extract(year from now() at time zone 'Asia/Shanghai')::int + 1, 1, 1)))
+      returning id into xid;
+    insert into notices(title, body, pinned, by_name, kind, election_id)
+      values((select title from elections where id=xid),
+             coalesce(nullif(trim(p_d->>'body'),''), '회장 · 부회장 · 감독 후보를 추천해 주세요. 본인을 고르면 출마입니다. 추천 내용은 회장만 봅니다.'),
+             true, me.name, 'election', xid) returning id into pid;
+    perform _notify(_ids(null), '🗳 임원 선거', '후보 추천이 시작됐어요', '#/election/'||xid);
+    return jsonb_build_object('ok',true,'id',xid);
+
+  when 'election' then
+    return (select jsonb_build_object(
+      'e', to_jsonb(e) || jsonb_build_object('phase', _ephase(e)),
+      'notice', (select jsonb_build_object('id',n.id,'body',n.body) from notices n where n.election_id=e.id limit 1),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('id',m.id,'name',m.name,'photo',m.photo,'role',m.role) order by m.name) from members m where m.approved),'[]'::jsonb),
+      'mine', coalesce((select jsonb_object_agg(x.position, x.candidate_id) from nominations x where x.election_id=e.id and x.member_id=me.id),'{}'::jsonb),
+      'mine_reason', (select x.reason from nominations x where x.election_id=e.id and x.member_id=me.id limit 1),
+      'mine_named', (select bool_or(x.named) from nominations x where x.election_id=e.id and x.member_id=me.id),
+      -- 추천 현황과 추천서: 회장만
+      'noms', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
+          select x.position, x.candidate_id, m.name, m.photo, count(*) cnt, bool_or(x.member_id = x.candidate_id) self,
+                 jsonb_agg(jsonb_build_object('reason',x.reason,'by',case when x.named then r.name end,'self',x.member_id=x.candidate_id) order by x.created_at) letters
+            from nominations x join members m on m.id=x.candidate_id join members r on r.id=x.member_id
+           where x.election_id=e.id group by x.position, x.candidate_id, m.name, m.photo order by x.position, count(*) desc) t),'[]'::jsonb) end,
+      'cands', coalesce((select jsonb_agg(jsonb_build_object('position',c.position,'id',c.candidate_id,'name',m.name,'photo',m.photo) order by c.position, m.name)
+          from candidates c join members m on m.id=c.candidate_id where c.election_id=e.id and c.round=e.round),'[]'::jsonb),
+      'voted', exists(select 1 from voted v where v.election_id=e.id and v.round=e.round and v.member_id=me.id),
+      'turnout', (select count(*) from voted v where v.election_id=e.id and v.round=e.round),
+      'total', (select count(*) from members where approved),
+      'result', case when _ephase(e)='result' and e.round > 0 then _eresult(e.id) end)
+      from elections e where e.id=(p_d->>'id')::bigint);
+
+  when 'nominate' then
+    select * into ok from (select _ephase(e)='rec' from elections e where e.id=(p_d->>'id')::bigint) t;
+    if not coalesce(ok,false) then return _err('추천 기간이 아닙니다'); end if;
+    delete from nominations where election_id=(p_d->>'id')::bigint and member_id=me.id;
+    insert into nominations(election_id, member_id, position, candidate_id, reason, named)
+      select (p_d->>'id')::bigint, me.id, k, v::bigint, left(coalesce(p_d->>'reason',''),300), coalesce((p_d->>'named')::boolean,false)
+        from jsonb_each_text(coalesce(p_d->'picks','{}'::jsonb)) as j(k, v)
+       where v ~ '^\d+$' and k in ('회장','부회장','감독') and exists(select 1 from members m where m.id=v::bigint and m.approved);
+    return jsonb_build_object('ok',true);
+
+  when 'electionStart' then
+    if me.role <> '회장' then return _err('회장만 투표를 시작할 수 있습니다'); end if;
+    xid := (p_d->>'id')::bigint;
+    if (select _ephase(e) from elections e where e.id=xid) not in ('rec','confirm') then return _err('이미 투표가 시작되었습니다'); end if;
+    if nullif(p_d->>'vote_until','') is null or (p_d->>'vote_until')::timestamptz <= now() then return _err('투표 마감을 정하세요'); end if;
+    update elections set round=1 where id=xid;
+    insert into candidates(election_id, round, position, candidate_id)
+      select xid, 1, k, v::bigint from jsonb_each(coalesce(p_d->'include','{}'::jsonb)) as j(k, arr), jsonb_array_elements_text(arr) as v
+       where k in ('회장','부회장','감독') and v ~ '^\d+$' on conflict do nothing;
+    if not exists(select 1 from candidates where election_id=xid and round=1) then return _err('후보가 한 명도 없습니다'); end if;
+    insert into tallies(election_id, round, position, choice)
+      select xid, 1, position, candidate_id::text from candidates where election_id=xid and round=1
+      union select xid, 1, position, 'abstain' from candidates where election_id=xid and round=1
+      union select xid, 1, position, 'no' from candidates where election_id=xid and round=1 group by position having count(*)=1
+      on conflict do nothing;
+    update elections set phase='vote', vote_until=(p_d->>'vote_until')::timestamptz where id=xid;
+    perform _notify(_ids(null), '🗳 임원 선거', '익명 투표가 시작됐어요', '#/election/'||xid);
+    return jsonb_build_object('ok',true);
+
+  when 'electionVote' then
+    xid := (p_d->>'id')::bigint;
+    select round into pid from elections e where e.id=xid and _ephase(e)='vote';
+    if pid is null then return _err('투표 기간이 아닙니다'); end if;
+    if exists(select 1 from voted where election_id=xid and round=pid and member_id=me.id) then return _err('이미 투표했습니다'); end if;
+    -- 이번 차수 모든 직책을 골라야 함
+    if exists(select 1 from (select distinct position from candidates where election_id=xid and round=pid) c
+               where not exists(select 1 from tallies t where t.election_id=xid and t.round=pid and t.position=c.position and t.choice = p_d->'picks'->>c.position))
+      then return _err('모든 직책을 골라 주세요'); end if;
+    insert into voted values(xid, pid, me.id);
+    update tallies t set n = t.n + 1 where t.election_id=xid and t.round=pid and t.choice = p_d->'picks'->>t.position;
+    return jsonb_build_object('ok',true);
+
+  when 'electionRevote' then
+    if me.role <> '회장' then return _err('회장만 재투표를 시작할 수 있습니다'); end if;
+    xid := (p_d->>'id')::bigint;
+    if (select _ephase(e) from elections e where e.id=xid) <> 'result' then return _err('투표가 끝난 뒤에 할 수 있습니다'); end if;
+    if nullif(p_d->>'vote_until','') is null or (p_d->>'vote_until')::timestamptz <= now() then return _err('재투표 마감을 정하세요'); end if;
+    select round + 1 into n from elections where id=xid;
+    insert into candidates(election_id, round, position, candidate_id)
+      select xid, n, r->>'position', (c->>'choice')::bigint
+        from jsonb_array_elements(_eresult(xid)) r, jsonb_array_elements(r->'rows') c
+       where r->>'status'='tie' and c->>'choice' ~ '^\d+$'
+         and (c->>'n')::int = (select max((c2->>'n')::int) from jsonb_array_elements(r->'rows') c2 where c2->>'choice' ~ '^\d+$');
+    if not exists(select 1 from candidates where election_id=xid and round=n) then return _err('동점인 직책이 없습니다'); end if;
+    insert into tallies(election_id, round, position, choice)
+      select xid, n, position, candidate_id::text from candidates where election_id=xid and round=n
+      union select xid, n, position, 'abstain' from candidates where election_id=xid and round=n
+      on conflict do nothing;
+    update elections set phase='vote', round=n, vote_until=(p_d->>'vote_until')::timestamptz where id=xid;
+    perform _notify(_ids(null), '🗳 재투표', '동점이라 다시 투표해요', '#/election/'||xid);
+    return jsonb_build_object('ok',true);
+
+  -- ───── 코치 지정 (감독·회장) ─────
+  when 'coachSet' then
+    if me.role not in ('감독','회장') then return _err('감독만 코치를 지정할 수 있습니다'); end if;
+    xid := (p_d->>'id')::bigint;
+    if (select role from members where id=xid) not in ('회원','코치') then return _err('회원·코치만 바꿀 수 있습니다'); end if;
+    update members set role = case when coalesce((p_d->>'on')::boolean,false) then '코치' else '회원' end where id=xid;
+    if coalesce((p_d->>'on')::boolean,false) then perform _notify(array[xid], '역할 변경', '코치로 지정되었습니다', '#/me'); end if;
+    return jsonb_build_object('ok',true);
+
+  -- ───── 프로필 사진 ─────
+  when 'setPhoto' then
+    if not _photo_ok(nullif(p_d->>'url','')) then return _err('사진 주소가 올바르지 않습니다'); end if;
+    update members set photo=nullif(p_d->>'url','') where id=me.id;
     return jsonb_build_object('ok',true);
 
   when 'setNote' then
@@ -672,7 +958,7 @@ begin
       'notis', coalesce((select jsonb_agg(t) from (select id,title,body,link,read,created_at from notis
           where to_id=me.id order by created_at desc limit 50) t),'[]'::jsonb),
       'users', case when me.role='회장' then coalesce((select jsonb_agg(t) from (
-          select id,name,role,position,approved,coalesce(video_admin,false) video_admin from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
+          select id,name,role,position,approved,coalesce(video_admin,false) video_admin,photo from members order by approved, id) t),'[]'::jsonb) else '[]'::jsonb end,
       'note', case when me.role='회장' then (select v->>'text' from config where k='admin_note') end,
       'sync', case when me.role in ('회장','부회장') then jsonb_build_object('key_at', (select v->>'at' from config where k='sync_key'),
           'status', (select v from config where k='video_sync_status'), 'count', (select count(*) from videos where sign is not null)) end,
@@ -756,7 +1042,7 @@ end $$;
 
 -- 권한: 앱이 부를 수 있는 함수는 4개뿐
 revoke execute on all functions in schema public from public, anon, authenticated;
-grant execute on function ping(), register(text,text), login(text,text), api(text,text,jsonb), video_sync(text,jsonb,jsonb) to anon, authenticated;
+grant execute on function ping(), register(text,text,text), login(text,text), api(text,text,jsonb), video_sync(text,jsonb,jsonb) to anon, authenticated;
 
 -- 파일 저장소 (사진·회의자료·회칙, 파일당 20MB)
 insert into storage.buckets(id,name,public,file_size_limit)

@@ -59,6 +59,9 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   <a href="#s7">7. 회장 전용: 회원 관리</a>
   <a href="#s7b">7-1. 운영진 알림 앱 (안드로이드)</a>
   <a href="#s7c">7-2. 🎥 XbotGo 경기 영상 자동 연동</a>
+  <a href="#s7d">7-3. 프로필 사진</a>
+  <a href="#s7e">7-4. 참가 신청 (接龙)</a>
+  <a href="#s7f">7-5. 🗳 임원 선거</a>
   <a href="#s8">8. ★ 인수인계 방법</a>
   <a href="#s9">9. 문제가 생겼을 때</a>
 </nav>
@@ -399,6 +402,55 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   </ul>
   <div class="warn">⚠️ 이 기능은 XbotGo가 공식 제공하는 연동이 아니라 XbotGo 화면이 쓰는 방식을 그대로 사용합니다. XbotGo가 구조를 바꾸면 자동 연동이 멈출 수 있습니다 (마지막 동기화에 ❌ 표시). 재생이 안 되면 XbotGo 화면을 끼워 보여주는 방식으로 자동 전환됩니다.</div>
   <div class="tip">🔐 XbotGo 비밀번호를 바꾸면 2번(MD5)을 다시 만들어 <code>XBOTGO_PW_MD5</code> 값을 바꿔 주세요. 인수인계 때는 새 회장이 1~3번을 다시 하면 됩니다.</div>
+</section>
+
+<section id="s7d">
+  <h2>7-3. 프로필 사진</h2>
+  <span class="who">모든 회원</span>
+  <ol>
+    <li><b>가입할 때</b> 동그란 사진 자리의 📷 버튼을 누르고 사진을 고릅니다. (안 올려도 됩니다)</li>
+    <li>화면 가운데 <b>동그란 점선</b>이 나오면, 손가락으로 사진을 옮기고 두 손가락(또는 아래 막대)으로 확대해 얼굴을 맞춘 뒤 <b>[완료]</b>.</li>
+    <li>사진을 올리지 않으면 <b>축구회 로고</b>가 프로필 사진으로 보입니다.</li>
+    <li>가입한 뒤에도 <b>[내정보] → 사진의 📷</b> → 새 사진 고르기 / 축구회 로고로 바꾸기.</li>
+  </ol>
+  <figure><img src="manual/40-reg.jpg" alt="가입 화면" loading="lazy"><figcaption>가입 화면 (사진 없으면 로고)</figcaption></figure>
+  <figure><img src="manual/41-crop.jpg" alt="사진 맞추기" loading="lazy"><figcaption>점선 안에 얼굴 맞추기</figcaption></figure>
+  <div class="tip">사진은 점선 안쪽만 작게 잘라 저장되어 저장 공간을 거의 쓰지 않습니다.</div>
+</section>
+
+<section id="s7e">
+  <h2>7-4. 참가 신청 (接龙)</h2>
+  <span class="who">신청: 모든 회원</span> <span class="who r">만들기: 회장·총무 · 명단: 운영진</span>
+  <h3>만들기</h3>
+  <ol>
+    <li>[내정보] → <b>[공지]</b> → <b>[+ 공지 쓰기]</b></li>
+    <li>제목·내용을 쓰고 <b>✋ 참가 신청 받기</b>를 체크 → 신청 마감(선택), 메모 칸 이름(선택, 예: 유니폼 사이즈)</li>
+    <li><b>[공지 올리기]</b> → 홈 공지에 뜨고 전체 회원에게 알림이 갑니다.</li>
+  </ol>
+  <h3>신청하기</h3>
+  <p>홈 공지의 <b>[신청하기]</b> → 공지 화면에서 <b>[신청하기]</b> 한 번. 신청하면 "신청했어요"로 바뀌고, 마감 전까지 [취소]할 수 있습니다. 회원에게는 명단과 인원이 보이지 않습니다.</p>
+  <figure><img src="manual/42-signup.jpg" alt="참가 신청" loading="lazy"><figcaption>회원 화면</figcaption></figure>
+  <h3>명단 (운영진)</h3>
+  <p>공지 화면의 <b>[신청 ○명 · 명단 보기]</b> → 순번대로 명단. <b>[위챗 接龙 문구 복사]</b>를 누르면 "#接龙 / 제목 / 1. 이름 …" 모양으로 복사되어 단톡방에 바로 붙여 넣을 수 있습니다. <b>[+ 대리 등록]</b>으로 가입 안 한 사람도 넣고, ✕로 빼고, <b>[마감하기]</b>로 마감합니다.</p>
+  <figure><img src="manual/43-signup-list.jpg" alt="신청 명단" loading="lazy"><figcaption>운영진 명단 화면</figcaption></figure>
+</section>
+
+<section id="s7f">
+  <h2>7-5. 🗳 임원 선거</h2>
+  <span class="who">추천·투표: 모든 회원</span> <span class="who r">시작·확정·재투표: 회장</span>
+  <ol>
+    <li><b>시작 (회장)</b>: [내정보] → [공지] → <b>[+ 임원 선거]</b> → 추천 마감·취임일(기본 다음 해 1월 1일) → <b>[추천 시작]</b>. 공지와 알림이 갑니다.</li>
+    <li><b>추천 (회원)</b>: 공지의 <b>[추천하기]</b> → 회장·부회장·감독 탭에서 사진을 눌러 고릅니다. <b>"나 (출마)"</b>를 고르면 출마입니다. 비워 둬도 되고, 마감 전까지 수정할 수 있습니다. <b>'회장에게 내 이름 공개'</b>를 켜면 기명, 끄면 익명 추천입니다. 추천 내용은 <b>회장만</b> 봅니다.</li>
+    <li><b>후보 확정 (회장)</b>: 추천 현황에서 출마하지 않는 사람은 스위치를 끄고, 투표 마감을 정해 <b>[투표 시작]</b>. 후보가 한 명인 직책은 <b>찬성·반대</b> 투표가 됩니다.</li>
+    <li><b>익명 투표 (회원)</b>: 직책마다 사진을 누르고(또는 <b>기권</b>) 세 직책을 다 고르면 <b>[투표하기]</b>. 제출 후에는 바꿀 수 없습니다.</li>
+    <li><b>결과</b>: 투표가 끝나면 득표수가 모두에게 공개됩니다. <b>동점</b>이면 회장이 <b>[재투표 시작]</b> → 동점자끼리 다시 투표합니다.</li>
+    <li><b>취임</b>: 취임일이 되면 당선자의 직책이 <b>자동으로</b> 바뀝니다. 총무는 새 회장이 회원 관리에서, 코치는 새 감독이 <b>[내정보] → [코치 지정]</b>에서 정합니다.</li>
+  </ol>
+  <div class="tip">🔒 <b>익명 보장:</b> 사이트에는 "누가 투표했는지"(중복 방지용)와 "후보별 표 수"만 저장되고, 누가 누구를 골랐는지는 어디에도 남지 않습니다. 회장이나 관리자도 알 수 없습니다.</div>
+  <figure><img src="manual/44-nominate.jpg" alt="추천" loading="lazy"><figcaption>추천 화면</figcaption></figure>
+  <figure><img src="manual/45-confirm.jpg" alt="후보 확정" loading="lazy"><figcaption>후보 확정 (회장)</figcaption></figure>
+  <figure><img src="manual/46-vote.jpg" alt="투표" loading="lazy"><figcaption>익명 투표</figcaption></figure>
+  <figure><img src="manual/47-result.jpg" alt="결과" loading="lazy"><figcaption>결과</figcaption></figure>
 </section>
 
 <section id="s8">

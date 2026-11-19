@@ -212,7 +212,7 @@ const SB_URL = 'https://yksmqlinnirkimwimxnh.supabase.co';
 const SB_KEY = 'sb_publishable_0w85YQNiY0vALbVhtX4ehg_GGp2X2z4';
 const CLUB = 'WXFC';
 // 새 버전 자동 반영: 앱·브라우저가 예전 화면을 저장해 둬도, 열 때마다 version.txt 를 확인해서 바뀌었으면 새로 불러옴
-const APPVER = '202611191319';
+const APPVER = '202611191332';
 async function checkVer(){
   try {
     const r = await fetch('version.txt?' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
@@ -863,7 +863,7 @@ function electionNew(){
     <label>안내</label><textarea id="eb" style="min-height:100px">회장 · 부회장 · 감독 후보를 추천해 주세요. 본인을 고르면 출마입니다. 추천 내용은 회장만 봅니다.</textarea>
     <label>추천 마감</label><input type="datetime-local" id="er" value="${dtLocal(d)}">
     <label>새 임원 취임일</label><input type="date" id="ea" value="${y}-01-01">
-    <div class="hint">순서: 추천 → (마감 후) 회장이 후보 확정 → 익명 투표 → 결과. 동점이면 동점자끼리 재투표해요. 총무는 새 회장이, 코치는 새 감독이 지정해요.</div>
+    <div class="hint">순서: 추천 → (마감 후) 회장이 후보 확정 → 익명 투표 → 결과. 동점이면 동점자끼리 재투표해요. 총무·코치는 새 회장이 회원 관리에서 지정해요.</div>
     <button class="btn" id="es">추천 시작 · 전체 알림</button>`));
   $('#es').onclick = async () => {
     if(!$('#er').value) return toast('추천 마감을 정하세요');
@@ -956,7 +956,7 @@ async function electionPage(id){
         const pic = x.status == 'win' ? avi(x.winner_photo, 56) : x.status == 'tie' ? `<div class="mini" style="padding-left:14px">${tops.map(c => `<img src="${esc(photoUrl(c.photo))}" alt="" style="width:44px;height:44px;margin-left:-14px">`).join('')}</div>` : `<div style="width:56px;height:56px;border-radius:50%;background:var(--soft)"></div>`;
         return `<div class="it">${pic}<div class="grow"><div class="sub" style="margin:0">${esc(x.position)}${x.round > 1 ? ' · 재투표' : ''}</div><div style="font-size:18px;font-weight:800">${main}</div>${rest ? `<div class="sub">${rest}</div>` : ''}</div>
           ${x.status == 'win' ? '<span class="pill ok">당선</span>' : x.status == 'tie' ? '<span class="pill">동점</span>' : x.status == 'rejected' ? '<span class="pill g">부결</span>' : ''}</div>` }).join('')}
-      <div class="hint" style="text-align:center;margin-top:12px">${e.applied ? '새 임원이 취임했어요' : ties.length ? '동점인 직책은 재투표 후 결정돼요' : `당선자는 ${esc(e.apply_on)}에 직책이 자동으로 바뀌어요`}<br>총무는 새 회장이, 코치는 새 감독이 지정해요</div></div>`;
+      <div class="hint" style="text-align:center;margin-top:12px">${e.applied ? '새 임원이 취임했어요' : ties.length ? '동점인 직책은 재투표 후 결정돼요' : `당선자는 ${esc(e.apply_on)}에 직책이 자동으로 바뀌어요`}<br>총무·코치는 새 회장이 회원 관리에서 지정해요</div></div>`;
     if(boss && ties.length && !e.applied){
       const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(22, 0, 0, 0);
       body += card('재투표 (회장만)', `<div class="sub">${ties.map(x => esc(x.position)).join(', ')} 동점자끼리 다시 투표해요</div><label>재투표 마감</label><input type="datetime-local" id="erv" value="${dtLocal(d)}"><button class="btn b-ink" id="ert">재투표 시작 · 전체 알림</button>`);
@@ -1275,7 +1275,7 @@ async function mePage(sec){
     const un = md ? md.months.filter(x => x.status == '미납' && (md.year < new Date().getFullYear() || x.m <= new Date().getMonth() + 1)).length : 0;
     const mine = [tile('bell', '알림', '#/me/noti', unread), md ? tile('wallet', '내 회비', '#/me/dues', un) : '', tile('lock', '비밀번호 변경', 'mePw()'),
       tile('globe', LANG === 'zh' ? '한국어' : '中文', "$('#lang').click()"), tile('book', '사용 설명서', 'manual.html'), tile('down', '결제내역 CSV', 'meCsv()'), isStaff() && /Android/i.test(navigator.userAgent) ? tile('phone', '알림 앱', 'app/wxfc.apk') : ''].join('');
-    const adm = [can ? tile('mega', '공지', '#/notices') : '', boss ? tile('people', '회원 관리', '#/me/members', waiting) : '', ['감독','회장'].includes(ME.role) ? tile('whistle', '코치 지정', '#/me/coach') : '',
+    const adm = [can ? tile('mega', '공지', '#/notices') : '', boss ? tile('people', '회원 관리', '#/me/members', waiting) : '',
       syncOk ? tile('video', '영상 연동', '#/me/sync') : '', boss ? tile('down', '백업', '#/me/backup') : '', boss ? tile('swap', '회장 인계', '#/me/handover') : ''].join('');
     V(`<div class="hero" style="display:flex;align-items:center;gap:16px"><div style="position:relative;flex:none">${avi(ME.photo, 68, '내 프로필 사진')}
           <button aria-label="사진 바꾸기" onclick="photoMenu()" style="position:absolute;right:-2px;bottom:-2px;width:28px;height:28px;border-radius:50%;background:#191F28;color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;padding:0">${ico('cam', 14)}</button></div>
@@ -1310,11 +1310,7 @@ async function mePage(sec){
     return V(back + myDuesHtml(md, '<a class="link" href="#/dues" style="display:block;margin-top:8px">회비 납부 현황 전체 보기 ›</a>'));
   }
   if(sec == 'notice') return location.replace('#/notices');
-  if(sec == 'coach' && ['감독','회장'].includes(ME.role)){
-    const L = r.users.filter(u => u.approved && ['회원','코치'].includes(u.role));
-    return V(card('코치 지정', `<div class="sub" style="margin:-4px 0 8px">감독이 코치를 지정해요. 켜면 코치, 끄면 회원이에요.</div>`
-      + (L.map(u => `<div class="person">${avi(u.photo, 40)}<div class="grow" style="font-weight:700">${esc(u.name)}</div><button class="sw ${u.role == '코치' ? 'on' : ''}" aria-label="${esc(u.name)} 코치" onclick="coachSet(${u.id}, ${u.role != '코치'})"></button></div>`).join('') || empty('지정할 회원이 없습니다'))));
-  }
+
   if(sec == 'members' && boss){
     return V(back + card('🛠 회원 관리', `<div class="hint" style="margin-bottom:8px">🎥 버튼 = 영상 관리 권한 (새 영상 가져오기 · 제목/경기 연결 · 숨기기). 빨간색이면 권한 있음. 회장은 항상 가능합니다.</div>`
       + r.users.map(u => `<div class="it">${avi(u.photo, 40)}<div class="grow">${esc(u.name)}<div class="sub">${u.approved ? esc(u.role) + (u.position ? ' · ' + esc(u.position) : '') + (u.video_admin && u.role != '회장' ? ' · 🎥 영상 관리' : '') : '가입 승인 대기'}</div></div>
@@ -1387,7 +1383,6 @@ async function meCsv(){ const l = (await api('export')).list;
   const rows = [['번호','구분','제목','항목','금액','상태','신청자','사유','신청일','지급일'], ...l.map(p => [p.id,p.type,p.title,p.category,p.amount,p.status,p.applicant,p.reason,fdt(p.created_at),fdt(p.paid_at)])];
   const csv = '﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
   saveFile(`WXFC_결제내역_${new Date().toISOString().slice(0,10)}.csv`, csv, 'text/csv') }
-async function coachSet(id, on){ await api('coachSet', { id, on }); toast(on ? '코치로 지정했어요' : '코치에서 뺐어요'); route() }
 async function photoMenu(){
   const m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = `<div class="sheet"><div style="font-weight:800;font-size:17px;margin-bottom:4px">프로필 사진</div>

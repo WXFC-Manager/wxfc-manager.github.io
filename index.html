@@ -211,6 +211,16 @@ if(LANG === 'zh'){
 const SB_URL = 'https://yksmqlinnirkimwimxnh.supabase.co';
 const SB_KEY = 'sb_publishable_0w85YQNiY0vALbVhtX4ehg_GGp2X2z4';
 const CLUB = 'WXFC';
+// 새 버전 자동 반영: 앱·브라우저가 예전 화면을 저장해 둬도, 열 때마다 version.txt 를 확인해서 바뀌었으면 새로 불러옴
+const APPVER = '202611191319';
+async function checkVer(){
+  try {
+    const r = await fetch('version.txt?' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
+    const v = (await r.text()).trim();
+    if(v && v != APPVER && !sessionStorage.getItem('rv' + v)){ sessionStorage.setItem('rv' + v, 1); location.replace(location.pathname + '?v=' + v + location.hash) }
+  } catch(e){}
+}
+checkVer(); document.addEventListener('visibilitychange', () => { if(!document.hidden) checkVer() });
 // 아이콘 (선 그림)
 const IC = {
   wallet:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12.5h3"/>', chart:'<path d="M5 20V11M12 20V5M19 20v-6"/>',

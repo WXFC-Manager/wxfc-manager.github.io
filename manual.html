@@ -140,7 +140,7 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
     <li>경기 이름, 상대팀, 날짜·시간, <b>경기 방식</b>(11인제·9인제 등)을 적습니다.</li>
     <li><b>구장 이름</b>을 적습니다. 전에 쓴 구장은 목록에서 고르면 주소도 자동으로 채워집니다.</li>
     <li>(선택) 고덕지도 앱에서 구장 → <b>공유 → 링크 복사</b> 후 <b>'고덕지도 공유 링크'</b> 칸에 붙여넣으면 정확한 위치가 열립니다.</li>
-    <li><b>[등록하고 회원에게 알림]</b> → 경기 화면의 <b>[📤 경기 일정 공유]</b>로 단톡방에 알립니다.</li>
+    <li><b>[등록하고 회원에게 알림]</b> → 경기 화면의 <b>[경기 일정 공유]</b>로 단톡방에 알립니다.</li>
   </ol>
   <figure><img src="manual/22-match-new.jpg" alt="경기 등록" loading="lazy"><figcaption>경기 등록 화면</figcaption></figure>
   <div class="tip">🔧 사이트 관리자 참고: 출석 체크 기능은 지워지지 않고 <b>숨겨져</b> 있습니다. <code>index.html</code>의 <code>const ATTEND = false;</code>를 <code>true</code>로 바꾸면 다시 나타납니다.</div>
@@ -166,9 +166,9 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   <h3>② 회장 승인 <span class="who">회장</span></h3>
   <ol>
     <li>홈의 <b>'내가 처리할 일'</b> 또는 알림에서 해당 결제안을 엽니다.</li>
-    <li>내용을 확인하고 <b>[승인]</b>을 누릅니다. 안 되는 경우 <b>[반려]</b>를 누르고 이유를 적습니다.</li>
+    <li>내용을 확인하고 화면 맨 아래 <b>[승인]</b>을 누릅니다. 안 되는 경우 <b>[반려]</b>를 누르고 이유를 적습니다.</li>
   </ol>
-  <figure><img src="manual/05-pay-boss.jpg" alt="회장 결재" loading="lazy"><figcaption>결재라인: 노란 점(●)이 지금 결재할 차례입니다</figcaption></figure>
+  <figure><img src="manual/05-pay-boss.jpg" alt="회장 결재" loading="lazy"><figcaption>결재 진행: 빨간 번호가 지금 결재할 차례입니다. 승인·반려 버튼은 화면 맨 아래에 있습니다</figcaption></figure>
 
   <h3>③ 부회장 승인 <span class="who">부회장</span></h3>
   <p>회장이 승인하면 부회장에게 알림이 갑니다. 똑같이 <b>[승인]</b> 또는 <b>[반려]</b>를 누릅니다.</p>
@@ -216,7 +216,7 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
     <li><span class="who">회장·총무</span> 처음 한 번 <b>월 회비</b>, <b>연납 금액</b>(1년 일시납, 예: 2000), <b>연납 기한</b>을 적고 <b>[설정 저장]</b>.</li>
     <li><span class="who">회장·총무</span> 회비를 받으면 그 회원 옆 칸을 <b>'납부'</b>로 바꿉니다. 사정이 있는 회원은 <b>'면제'</b>.</li>
     <li><span class="who">회장·총무</span> 1년 회비를 한 번에 낸 회원은 <b>'연납'</b>을 고릅니다. 연회비가 수입으로 한 번 등록되고, <b>그해 모든 달이 자동으로 납부</b>로 표시됩니다. 연납한 회원은 <b>🏅 연회비 완납</b> 칸에 이름이 나옵니다.</li>
-    <li><b>[🔔 미납자에게 알림 보내기]</b>로 안 낸 사람에게만 알림, <b>[📤 납부 현황 복사]</b>로 단톡방 공유.</li>
+    <li><b>[🔔 미납자에게 알림 보내기]</b>로 안 낸 사람에게만 알림, <b>[납부 현황 복사]</b>로 단톡방 공유.</li>
   </ol>
   <figure><img src="manual/26-dues.jpg" alt="회비 납부 현황" loading="lazy"><figcaption>회비 납부 현황 (총무 화면)</figcaption></figure>
   <h3>🎫 면제 대상 · ⏸ 일시중단 <span class="who">회장·총무</span></h3>
@@ -262,7 +262,7 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   </ol>
   <figure><img src="manual/17-meet-poll.jpg" alt="투표 만들기" loading="lazy"><figcaption>회의 화면의 투표 칸</figcaption></figure>
   <h3>② 위챗 단톡방에 공유 <span class="who g">운영진</span></h3>
-  <p>투표 화면 맨 아래 <b>[📤 투표 링크 복사]</b> → 위챗 단톡방에 <b>붙여넣기</b>.</p>
+  <p>투표 화면 맨 아래 <b>[투표 링크 복사]</b> → 위챗 단톡방에 <b>붙여넣기</b>.</p>
   <figure><img src="manual/19-vote-share.jpg" alt="투표 링크 복사" loading="lazy"><figcaption>투표 링크 복사 버튼</figcaption></figure>
   <h3>③ 투표하기 <span class="who">모든 회원</span></h3>
   <ol>
@@ -373,7 +373,7 @@ code{background:#EEF3F8;padding:1px 6px;border-radius:6px;font-size:15px}
   <p>XbotGo 클라우드에 올라간 영상을 <b>8시간마다 자동으로</b> 가져와, 경기 일정에 연결합니다. 회원은 <b>홈 화면 [🎥 영상 보기]</b> 버튼(또는 📅 일정 → [🎥 경기 영상 보기])이나 경기 화면에서 바로 봅니다. 영상 목록은 10개씩 페이지로 나뉩니다.</p>
   <h3>보는 방법 <span class="who">모든 회원</span></h3>
   <ul>
-    <li>영상을 누르면 사이트 안에서 재생됩니다. 영상 안의 재생바로 이동하고, 아래 <b>⏪ 10초 / 10초 ⏩</b>, <b>0.5× ~ 2×</b> 속도 버튼을 쓸 수 있습니다.</li>
+    <li>영상을 누르면 사이트 안에서 재생됩니다. 영상 안의 재생바로 이동하고, 아래 <b>10초 뒤로 / 10초 앞으로</b>, <b>0.5× ~ 2×</b> 속도 버튼을 쓸 수 있습니다.</li>
     <li><b>[⛶ 크게 보기]</b>를 누르면 가로 전체화면으로 바뀌고, 위쪽에 <b>10초 이동·속도 버튼</b>이 그대로 나옵니다. 3초 동안 안 만지면 버튼이 숨고, 화면을 누르면 다시 나옵니다. <b>[✕ 작게]</b>로 돌아옵니다.</li>
     <li>원본 화질이라 데이터를 많이 씁니다. <b>와이파이</b>에서 보세요.</li>
   </ul>

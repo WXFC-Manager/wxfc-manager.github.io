@@ -50,6 +50,7 @@ a{color:inherit;text-decoration:none}
 label{display:block;font-size:14px;color:var(--sub);margin:8px 0 6px;font-weight:600}
 input,select,textarea{width:100%;border:0;background:var(--soft);border-radius:14px;padding:14px 15px;font:inherit;margin-bottom:10px;color:var(--ink);outline:none}
 textarea{min-height:120px;resize:vertical}
+input::placeholder,textarea::placeholder{color:#636E7B;opacity:1}
 input:focus,textarea:focus,select:focus{box-shadow:0 0 0 2px #FFC9CD}
 .btn{display:block;width:100%;border:0;border-radius:14px;padding:15px;font:inherit;font-size:16px;font-weight:800;background:var(--red);color:#fff;margin-top:8px;cursor:pointer;text-align:center}
 .btn:disabled{opacity:.45}.b-green{background:var(--red)}.b-red{background:#fff;color:#C8102E;box-shadow:inset 0 0 0 1.5px #F5B9BD}.b-ghost{background:#fff;color:var(--ink2)}.card .b-ghost,.sheet .b-ghost,.hero .b-ghost,.modal .b-ghost{background:var(--soft)}.b-ink{background:var(--ink);color:#fff}
@@ -214,7 +215,7 @@ const SB_URL = 'https://yksmqlinnirkimwimxnh.supabase.co';
 const SB_KEY = 'sb_publishable_0w85YQNiY0vALbVhtX4ehg_GGp2X2z4';
 const CLUB = 'WXFC';
 // 새 버전 자동 반영: 앱·브라우저가 예전 화면을 저장해 둬도, 열 때마다 version.txt 를 확인해서 바뀌었으면 새로 불러옴
-const APPVER = '202611201156';
+const APPVER = '202611201208';
 async function checkVer(){
   try {
     const r = await fetch('version.txt?' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
@@ -500,11 +501,11 @@ const dueTag = st => st == '연납' ? '<span class="tag t-done">🏅 연회비 �
   : st == '면제' || st == '면제대상' ? '<span class="tag t-ok">면제</span>' : st == '일시중단' ? '<span class="tag t-wait">⏸ 일시중단</span>' : '<span class="tag t-no">미납</span>';
 function myDuesHtml(md, extra = ''){
   const z = typeof LANG != 'undefined' && LANG == 'zh', now = new Date(), cy = now.getFullYear(), cm = now.getMonth() + 1;
-  const C = { 납부:['#DFF3E3','#2E7D32','✓'], 연납:['#DFF3E3','#2E7D32','🏅'], 면제:['#EEF1F4','#5F6B7A', z ? '免' : '면제'], 면제대상:['#EEF1F4','#5F6B7A', z ? '免' : '면제'],
-    일시중단:['#FFF4CC','#8A6D00','⏸'], 미납:['#FDE2E1','#B3261E', z ? '未缴' : '미납'], 해당없음:['#F5F7FA','#98A2AD','-'] };
+  const C = { 납부:['#DFF3E3','#1B5E20','✓'], 연납:['#DFF3E3','#1B5E20','🏅'], 면제:['#EEF1F4','#5F6B7A', z ? '免' : '면제'], 면제대상:['#EEF1F4','#5F6B7A', z ? '免' : '면제'],
+    일시중단:['#FFF4CC','#8A6D00','⏸'], 미납:['#FDE2E1','#B3261E', z ? '未缴' : '미납'], 해당없음:['#F5F7FA','#636E7B','-'] };
   const fut = m => md.year > cy || (md.year == cy && m > cm);
-  const cells = md.months.map(x => { const c = fut(x.m) && x.status == '미납' ? ['#F5F7FA','#9AA5B1','-'] : (C[x.status] || C['미납']);
-    return `<div style="background:${c[0]};color:${c[1]};border-radius:10px;padding:7px 0;text-align:center"><div style="font-size:12px;opacity:.85">${x.m}${z ? '月' : '월'}</div><div style="font-weight:700;font-size:13px">${c[2]}</div></div>` }).join('');
+  const cells = md.months.map(x => { const c = fut(x.m) && x.status == '미납' ? ['#F5F7FA','#636E7B','-'] : (C[x.status] || C['미납']);
+    return `<div style="background:${c[0]};color:${c[1]};border-radius:10px;padding:7px 0;text-align:center"><div style="font-size:12px">${x.m}${z ? '月' : '월'}</div><div style="font-weight:700;font-size:13px">${c[2]}</div></div>` }).join('');
   const un = md.months.filter(x => x.status == '미납' && !fut(x.m)).length;
   return `<div class="card"><div class="ct" data-nt><span>🙋 ${z ? `我的会费 (${md.year}年)` : `내 회비 (${md.year}년)`}</span></div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px" data-nt>${cells}</div>
@@ -520,7 +521,7 @@ const mdhm = t => { const d = new Date(t), p = x => String(x).padStart(2, '0'); 
 const nSub = n => n.kind == 'signup' ? (n.closed ? '신청 마감' : n.signup_until ? mdhm(n.signup_until) + '까지 신청' : '참가 신청')
   : n.kind == 'election' && n.el ? ({ rec: `추천 받는 중 · ${mdhm(n.el.rec_until)}까지`, confirm: '추천 마감 · 후보 확정 중', vote: `익명 투표 중 · ${mdhm(n.el.vote_until)}까지`, result: '결과 발표' })[n.el.phase]
   : fdt(n.created_at).slice(0, 10) + (n.ended ? ' · 게시 종료' : '');
-const nRow = n => `<a class="it" href="#/${n.kind == 'election' ? 'election/' + n.election_id : 'notice/' + n.id}"${n.ended ? ' style="opacity:.55"' : ''}><div class="grow"><div style="font-weight:700">${n.pinned ? '📌 ' : ''}${esc(n.title)}</div><div class="sub">${nSub(n)}</div></div>${nPill(n) || `<span style="color:#B0B8C1">${ico('chev', 18)}</span>`}</a>`;
+const nRow = n => `<a class="it" href="#/${n.kind == 'election' ? 'election/' + n.election_id : 'notice/' + n.id}"><div class="grow"><div style="font-weight:700">${n.pinned ? '📌 ' : ''}${esc(n.title)}</div><div class="sub">${nSub(n)}</div></div>${nPill(n) || `<span style="color:#B0B8C1">${ico('chev', 18)}</span>`}</a>`;
 async function home(){
   const h = await api('home'), nx = h.next, W = ['일','월','화','수','목','금','토'];
   const day0 = t => { const d = new Date(t); d.setHours(0,0,0,0); return d };
@@ -755,7 +756,7 @@ async function duesPage(){
       <div style="margin-top:8px;background:#EEF1F4;border-radius:99px;height:10px;overflow:hidden"><div style="height:100%;width:${pc}%;background:var(--green)"></div></div>
       ${ex.length || ps.length ? `<div class="sub" style="margin-top:8px">면제 ${ex.length}명 · 일시중단 ${ps.length}명 (인원에서 제외)</div>` : ''}
       <div class="sub" style="margin-top:4px">월 회비 ${r.amount > 0 ? yen(r.amount) : '미정'}${r.year_amount > 0 ? ` · 연납 ${yen(r.year_amount)}${r.year_deadline ? ' (' + esc(r.year_deadline) + '까지)' : ''}` : ''}</div></div>
-    ${r.year_amount > 0 ? card(`🏅 ${y}년 연회비 완납 (${yr.length}명)`, `<div class="chips">${yr.map(x => `<span class="chip" style="background:#DFF3E3;color:#2E7D32">🏅 ${esc(x.name)}</span>`).join('') || '<span class="sub">아직 없습니다</span>'}</div>
+    ${r.year_amount > 0 ? card(`🏅 ${y}년 연회비 완납 (${yr.length}명)`, `<div class="chips">${yr.map(x => `<span class="chip" style="background:#DFF3E3;color:#1B5E20">🏅 ${esc(x.name)}</span>`).join('') || '<span class="sub">아직 없습니다</span>'}</div>
       <div class="hint" style="margin-top:8px">1년 회비를 ${r.year_deadline ? esc(r.year_deadline) + '까지 ' : ''}한 번에 내면 ${yen(r.year_amount)}입니다. 연납한 회원은 그해 모든 달이 납부로 처리됩니다.</div>`) : ''}
     ${can ? card('⚙️ 회비 설정', `<label>월 회비 금액 (위안)</label><input id="da" type="number" inputmode="decimal" value="${r.amount || ''}" placeholder="예) 200">
       <label>연납(1년 일시납) 금액 (위안)</label><input id="dy" type="number" inputmode="decimal" value="${r.year_amount || ''}" placeholder="예) 2000">

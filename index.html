@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WXFC">
 <link rel="icon" href="img/logo.svg">
 <style>
-:root{--navy:#191F28;--red:#D9141F;--red2:#FFECEC;--green:#0E7A3D;--bg:#F2F4F6;--card:#fff;--ink:#191F28;--ink2:#4E5968;--sub:#6B7684;--line:#F2F4F6;--soft:#F2F4F6}
+:root{--navy:#191F28;--red:#D9141F;--red2:#FFECEC;--green:#0E7A3D;--bg:#F2F4F6;--card:#fff;--ink:#191F28;--ink2:#4E5968;--sub:#636E7B;--line:#F2F4F6;--soft:#F2F4F6}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Apple SD Gothic Neo","Malgun Gothic","PingFang SC","Noto Sans KR",sans-serif;letter-spacing:-.2px}
 a{color:inherit;text-decoration:none}
@@ -60,20 +60,20 @@ input:focus,textarea:focus,select:focus{box-shadow:0 0 0 2px #FFC9CD}
 .fabs{position:fixed;right:max(16px,calc(50% - 264px));bottom:88px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;z-index:5}
 .fab{background:var(--red);color:#fff;border-radius:99px;padding:14px 20px;font-weight:800;box-shadow:0 8px 20px rgba(217,20,31,.28)}
 .fab.n{background:var(--ink);box-shadow:0 8px 20px rgba(25,31,40,.25)}
-.empty{text-align:center;color:#8B95A1;padding:36px 0}
+.empty{text-align:center;color:#636E7B;padding:36px 0}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
 .thumb{width:76px;height:76px;border-radius:12px;object-fit:cover;background:var(--soft)}
-.add{width:76px;height:76px;border-radius:12px;border:1.5px dashed #C9CFD6;display:flex;align-items:center;justify-content:center;color:#8B95A1;font-size:26px;position:relative;overflow:hidden}
+.add{width:76px;height:76px;border-radius:12px;border:1.5px dashed #C9CFD6;display:flex;align-items:center;justify-content:center;color:#636E7B;font-size:26px;position:relative;overflow:hidden}
 .add input{position:absolute;inset:0;opacity:0;margin:0;padding:0}
 .file{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--soft);border-radius:12px;padding:12px 14px;margin-bottom:8px;font-size:14px}
 .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.link{color:#1B64DA;font-size:14px;white-space:nowrap}.del{color:#C8102E;font-size:13px}
+.link{color:#1B64DA;font-size:14px;white-space:nowrap;display:inline-block;padding:11px 4px;margin:-11px -4px}.del{color:#C8102E;font-size:13px}
 .txt{white-space:pre-wrap;word-break:break-word;line-height:1.7;color:var(--ink2)}
 .steps{display:flex;align-items:flex-start}.step{flex:1;text-align:center}
-.dot{width:34px;height:34px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:14px;background:#E5E8EB;color:#8B95A1}
+.dot{width:34px;height:34px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:14px;background:#E5E8EB;color:#636E7B}
 .dot.done{background:var(--ink);color:#fff}.dot.now{background:var(--red);color:#fff}.dot.no{background:#C8102E;color:#fff}
 .bar{flex:.5;height:2px;background:#E5E8EB;margin-top:16px}
-.st{font-size:12px;font-weight:700}.ss{font-size:11px;color:#8B95A1}
+.st{font-size:12px;font-weight:700}.ss{font-size:12px;color:#636E7B}
 .log{font-size:12px;color:var(--sub);padding:7px 0;border-bottom:1px solid var(--line)}.log:last-child{border-bottom:0}
 .person{display:flex;align-items:center;gap:12px;padding:9px 0}
 .av{width:42px;height:42px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;object-fit:cover}
@@ -82,15 +82,15 @@ img.av{background:#E5E8EB;display:block}
 .chips{display:flex;flex-wrap:wrap;gap:7px}.chip{background:var(--soft);color:var(--ink2);border-radius:99px;padding:6px 12px;font-size:13px;display:inline-flex;align-items:center;gap:6px}
 .chip img{width:22px;height:22px;border-radius:50%;object-fit:cover;margin-left:-6px}
 .date{width:54px;text-align:center;background:#FFF3F3;border-radius:14px;padding:7px 0;color:var(--red);flex-shrink:0}
-.dd{font-size:19px;font-weight:800;line-height:1.1}.dm{font-size:11px;font-weight:700}
+.dd{font-size:19px;font-weight:800;line-height:1.1}.dm{font-size:12px;font-weight:700}
 .unread{background:#FFF8F8;margin:0 -20px;padding-left:20px;padding-right:20px}
-.hint{font-size:13px;color:#8B95A1;line-height:1.6}
+.hint{font-size:13px;color:#636E7B;line-height:1.6}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 nav{position:fixed;left:0;right:0;bottom:0;background:#fff;display:flex;justify-content:center;border-top:1px solid #EEF0F2;padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav .in{display:flex;width:100%;max-width:560px}
-nav a{flex:1;text-align:center;padding:8px 0 10px;font-size:11px;color:#8B95A1;position:relative;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav a{flex:1;text-align:center;padding:8px 0 10px;font-size:12px;color:#6B7684;position:relative;display:flex;flex-direction:column;align-items:center;gap:2px}
 nav a.on{color:var(--ink);font-weight:700}
-.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--red);color:#fff;border-radius:99px;font-size:10px;padding:1px 6px;font-weight:800}
+.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--red);color:#fff;border-radius:99px;font-size:11px;padding:1px 6px;font-weight:800}
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(25,31,40,.92);color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:80;max-width:85%;text-align:center}
 #toast.show{opacity:1}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:30}
@@ -169,9 +169,11 @@ const LANG = (() => {
 })();
 const I18N_LONG = Object.keys(I18N).filter(k => k.length >= 3).sort((a, b) => b.length - a.length);
 const I18N_SHORT = new RegExp('(^|[·:—(（]\\s?)(' + Object.keys(I18N).filter(k => k.length < 3).sort((a, b) => b.length - a.length).join('|') + ')(?=$|[\\s·)）,:])', 'g');
+const I18N_NE = (() => { const o = {}, st = x => x.replace(/^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})+\uFE0F?\s*/u, ''); for(const k in I18N){ const a = st(k); if(a != k && !I18N[a]) o[a] = st(I18N[k]) } return o })();
 function tr(s){
   if(LANG !== 'zh' || !s || !/[가-힣]/.test(s)) return s;
   const t = s.trim(); if(I18N[t]) return s.replace(t, I18N[t]);
+  if(I18N_NE[t]) return s.replace(t, I18N_NE[t]);
   let r = s;
   for(const k of I18N_LONG) if(r.includes(k)) r = r.split(k).join(I18N[k]);
   return r.replace(I18N_SHORT, (m, a, b) => a + I18N[b])
@@ -212,7 +214,7 @@ const SB_URL = 'https://yksmqlinnirkimwimxnh.supabase.co';
 const SB_KEY = 'sb_publishable_0w85YQNiY0vALbVhtX4ehg_GGp2X2z4';
 const CLUB = 'WXFC';
 // 새 버전 자동 반영: 앱·브라우저가 예전 화면을 저장해 둬도, 열 때마다 version.txt 를 확인해서 바뀌었으면 새로 불러옴
-const APPVER = '202611191332';
+const APPVER = '202611201156';
 async function checkVer(){
   try {
     const r = await fetch('version.txt?' + Date.now(), { cache: 'no-store' }); if(!r.ok) return;
@@ -327,7 +329,8 @@ function saveFile(name, text, mime){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; a.click();
   if(/MicroMessenger/i.test(navigator.userAgent)) toast('위챗 안에서는 저장이 안 될 수 있어요. 브라우저에서 열어 주세요');
 }
-const card = (t, body, right='') => `<div class="card"><div class="ct"><span>${t}</span>${right}</div>${body}</div>`;
+const noEmo = t => String(t).replace(/^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})+\uFE0F?\s*/u, '');
+const card = (t, body, right='') => `<div class="card"><div class="ct"><h2 style="margin:0;font-size:inherit;font-weight:inherit">${noEmo(t)}</h2>${right}</div>${body}</div>`;
 const empty = t => `<div class="empty">${t}</div>`;
 // 화면 그리기: 하위 화면이면 맨 위에 '‹ 뒤로', 스크롤은 route() 가 정한 위치(뒤로 가기면 보던 위치)
 let NAVY = null, CURH = '', CURT = 'home'; const HIST = [], SCR = {};
@@ -498,10 +501,10 @@ const dueTag = st => st == '연납' ? '<span class="tag t-done">🏅 연회비 �
 function myDuesHtml(md, extra = ''){
   const z = typeof LANG != 'undefined' && LANG == 'zh', now = new Date(), cy = now.getFullYear(), cm = now.getMonth() + 1;
   const C = { 납부:['#DFF3E3','#2E7D32','✓'], 연납:['#DFF3E3','#2E7D32','🏅'], 면제:['#EEF1F4','#5F6B7A', z ? '免' : '면제'], 면제대상:['#EEF1F4','#5F6B7A', z ? '免' : '면제'],
-    일시중단:['#FFF4CC','#8A6D00','⏸'], 미납:['#FDE2E1','#B3261E', z ? '未缴' : '미납'], 해당없음:['#F5F7FA','#C5CED8','-'] };
+    일시중단:['#FFF4CC','#8A6D00','⏸'], 미납:['#FDE2E1','#B3261E', z ? '未缴' : '미납'], 해당없음:['#F5F7FA','#98A2AD','-'] };
   const fut = m => md.year > cy || (md.year == cy && m > cm);
   const cells = md.months.map(x => { const c = fut(x.m) && x.status == '미납' ? ['#F5F7FA','#9AA5B1','-'] : (C[x.status] || C['미납']);
-    return `<div style="background:${c[0]};color:${c[1]};border-radius:10px;padding:7px 0;text-align:center"><div style="font-size:11px;opacity:.8">${x.m}${z ? '月' : '월'}</div><div style="font-weight:700;font-size:13px">${c[2]}</div></div>` }).join('');
+    return `<div style="background:${c[0]};color:${c[1]};border-radius:10px;padding:7px 0;text-align:center"><div style="font-size:12px;opacity:.85">${x.m}${z ? '月' : '월'}</div><div style="font-weight:700;font-size:13px">${c[2]}</div></div>` }).join('');
   const un = md.months.filter(x => x.status == '미납' && !fut(x.m)).length;
   return `<div class="card"><div class="ct" data-nt><span>🙋 ${z ? `我的会费 (${md.year}年)` : `내 회비 (${md.year}년)`}</span></div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px" data-nt>${cells}</div>
@@ -522,9 +525,9 @@ async function home(){
   const h = await api('home'), nx = h.next, W = ['일','월','화','수','목','금','토'];
   const day0 = t => { const d = new Date(t); d.setHours(0,0,0,0); return d };
   const days = nx ? Math.round((day0(nx.starts_at) - day0(Date.now())) / 864e5) : null;
+  h.notices = (h.notices || []).filter(n => !(n.kind == 'election' && n.el && n.el.phase == 'result' && n.el.vote_until && Date.now() - new Date(n.el.vote_until) > 14 * 864e5));
   const openN = (h.notices || []).find(n => (n.kind == 'signup' && n.open && !n.mine) || (n.kind == 'election' && n.el && ['rec','vote'].includes(n.el.phase) && !n.el.done));
-  const head = h.todo.length ? `처리할 일이<br><em>${h.todo.length}건</em> 있어요`
-    : openN ? `<em>${openN.kind == 'election' ? '임원 선거' : '참가 신청'}</em>이<br>열려 있어요`
+  const head = openN ? `<em>${openN.kind == 'election' ? '임원 선거' : '참가 신청'}</em>이<br>열려 있어요`
     : nx && days != null && days <= 7 ? `${days == 0 ? '오늘' : days == 1 ? '내일' : W[new Date(nx.starts_at).getDay()] + '요일에'}<br><em>경기</em>가 있어요`
     : '';
   const t0 = h.todo[0];
@@ -536,8 +539,8 @@ async function home(){
     ${nx ? card('다음 경기', `<a href="#/match/${nx.id}" style="display:flex;gap:14px;align-items:center;margin-top:6px">
         <div class="date" style="width:60px;padding:9px 0;background:#191F28;color:#fff"><div class="dm" style="color:#C9CED6">${days == 0 ? '오늘' : 'D-' + days}</div><div class="dd">${new Date(nx.starts_at).getDate()}</div></div>
         <div class="grow"><div style="font-size:17px;font-weight:700">${esc(nx.title)}${nx.opponent ? ' vs ' + esc(nx.opponent) : ''}</div>
-        <div class="sub">${W[new Date(nx.starts_at).getDay()]}요일 ${fdt(nx.starts_at).slice(11)} · ${esc(nx.venue || '구장 미정')}</div></div></a>`, '<a class="link" style="color:#6B7684" href="#/matches">일정 ›</a>') : ''}
-    ${h.notices && h.notices.length ? card('공지', h.notices.map(nRow).join(''), `<a class="link" style="color:#6B7684" href="#/notices">전체 ›</a>`) : ''}
+        <div class="sub">${W[new Date(nx.starts_at).getDay()]}요일 ${fdt(nx.starts_at).slice(11)} · ${esc(nx.venue || '구장 미정')}</div></div></a>`, '<a class="link" style="color:#636E7B" href="#/matches">일정 ›</a>') : ''}
+    ${h.notices && h.notices.length ? card('공지', h.notices.map(nRow).join(''), `<a class="link" style="color:#636E7B" href="#/notices">전체 ›</a>`) : ''}
     ${h.polls.length ? card('투표', h.polls.map(v => `<a class="it" href="#/vote/${v.id}"><div class="grow"><div style="font-weight:700">${esc(v.title)}</div>${v.deadline ? `<div class="sub">${mdhm(v.deadline)}까지</div>` : ''}</div>${v.voted ? '<span class="pill ok">✓ 투표함</span>' : '<span class="pill">투표하기</span>'}</a>`).join('')) : ''}
     <div class="qgrid">${Q.map(([i, t, u]) => `<a class="q" href="${u}"><b>${ico(i)}</b>${t}</a>`).join('')}</div>
     <div class="card" style="display:flex;align-items:center;gap:12px"><div class="grow"><div class="sub" style="font-size:15px;margin:0">축구회 잔액</div>
@@ -822,8 +825,8 @@ async function noticePage(id){
   if(!n) return location.replace('#/notices');
   if(n.kind == 'election') return location.replace('#/election/' + n.election_id);
   const can = ['회장','총무'].includes(ME.role), sig = n.kind == 'signup';
-  V(`<div class="hero">${sig ? `<span class="pill${n.open ? '' : ' g'}">${n.open ? '참가 신청' + (n.signup_until ? ' · ' + mdhm(n.signup_until) + '까지' : '') : '신청 마감'}</span>` : n.pinned ? '<span class="pill g">📌 고정</span>' : ''}
-      <div class="ht" style="font-size:23px;margin-top:${sig || n.pinned ? 12 : 0}px">${esc(n.title)}</div><div class="hs">${fdt(n.created_at).slice(0, 10)}${n.by_name ? ' · ' + esc(n.by_name) : ''}</div>
+  V(`<div class="hero"><h1 class="ht" style="font-size:23px;margin:0">${n.pinned ? '📌 ' : ''}${esc(n.title)}</h1>
+      <div class="hs" style="margin-top:6px">${sig ? `<b style="color:${n.open ? '#C8102E' : '#636E7B'}">${n.open ? '참가 신청' + (n.signup_until ? ' · ' + mdhm(n.signup_until) + '까지' : '') : '신청 마감'}</b> · ` : ''}${fdt(n.created_at).slice(0, 10)}${n.by_name ? ' · ' + esc(n.by_name) : ''}</div>
       ${n.body && n.body.trim() != n.title.trim() ? `<div class="txt" style="margin-top:12px">${esc(n.body)}</div>` : ''}</div>
     ${!sig ? '' : n.mine ? `<div class="card" style="display:flex;align-items:center;gap:14px"><span style="width:44px;height:44px;border-radius:50%;background:#E8F7EE;color:#0E7A3D;display:flex;align-items:center;justify-content:center;flex:none">${ico('check')}</span>
         <div class="grow"><div style="font-size:17px;font-weight:800">신청했어요</div><div class="sub">${r.my && r.my.memo ? esc((n.memo_label || '메모') + ': ' + r.my.memo) : n.open ? '마감 전까지 취소할 수 있어요' : '신청이 마감되었어요'}</div></div>
@@ -844,7 +847,7 @@ async function signupsPage(id){
       <div class="hs">${esc(n.title)}${n.signup_until ? ' · ' + mdhm(n.signup_until) + '까지' : ''}${n.closed ? ' · 마감됨' : ''}</div>
       <button class="btn b-ink" id="jl" style="margin-top:16px">위챗 接龙 문구 복사</button></div>
     <div class="card">${L.length ? `<div class="nm2">${ord.map(i => { const x = L[i];
-        return `<div class="li"><span class="n">${i + 1}</span>${avi(x.photo, 28)}<span class="grow" style="line-height:1.25"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name)}</span>${x.memo ? `<span style="display:block;font-size:12px;color:#6B7684;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.memo)}</span>` : ''}</span><a class="del" style="cursor:pointer;padding:2px 4px;flex:none" aria-label="${esc(x.name)} 빼기" onclick="sgDel(${n.id},${x.id},'${esc(x.name)}')">✕</a></div>` }).join('')}</div>` : empty('아직 신청한 사람이 없어요')}
+        return `<div class="li"><span class="n">${i + 1}</span>${avi(x.photo, 28)}<span class="grow" style="line-height:1.25"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name)}</span>${x.memo ? `<span style="display:block;font-size:12px;color:#636E7B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.memo)}</span>` : ''}</span><a class="del" style="cursor:pointer;padding:2px 4px;flex:none" aria-label="${esc(x.name)} 빼기" onclick="sgDel(${n.id},${x.id},'${esc(x.name)}')">✕</a></div>` }).join('')}</div>` : empty('아직 신청한 사람이 없어요')}
       <div style="display:flex;gap:8px;margin-top:16px"><button class="btn b-ghost" style="margin:0" id="sa">+ 대리 등록</button><button class="btn b-ghost" style="margin:0" id="sx">${n.closed ? '다시 열기' : '마감하기'}</button></div>
       <div class="hint" style="margin-top:10px">대리 등록: 사이트에 가입하지 않은 사람 이름을 직접 넣어요</div></div>`);
   $('#jl').onclick = () => copyText(`#接龙\n${n.title}\n${(n.body || '').trim() && n.body.trim() != n.title.trim() ? n.body.trim() + '\n' : ''}\n` + L.map((x, i) => `${i + 1}. ${x.name}${x.memo ? ' ' + x.memo : ''}`).join('\n'));
@@ -878,7 +881,7 @@ async function electionPage(id){
   if(EL.id != r.e.id) EL = { id:r.e.id, pos:0, pick:{ ...r.mine }, named:!!r.mine_named, reason:r.mine_reason || '', edit:false, vote:{} };
   const e = r.e, ph = e.phase, boss = ME.role == '회장', POS = e.positions, M = Object.fromEntries(r.members.map(m => [m.id, m]));
   const st = { rec:`추천 중 · ${mdhm(e.rec_until)}까지`, confirm:'추천 마감 · 후보 확정 중', vote:`익명 투표 · ${mdhm(e.vote_until)}까지${e.round > 1 ? ' · 재투표' : ''}`, result:'결과 발표' }[ph];
-  const hero = `<div class="hero"><span class="pill${ph == 'result' || ph == 'confirm' ? ' g' : ''}">${st}</span><div class="ht" style="font-size:24px;margin-top:12px">${esc(e.title)}</div>
+  const hero = `<div class="hero"><h1 class="ht" style="font-size:24px;margin:0">${esc(e.title)}</h1><div class="hs" style="margin-top:6px"><b style="color:${ph == 'result' || ph == 'confirm' ? '#636E7B' : '#C8102E'}">${st}</b></div>
     ${r.notice && r.notice.body && ph == 'rec' ? `<div class="txt" style="margin-top:8px">${esc(r.notice.body)}</div>` : ''}</div>`;
   const dock = h => { document.querySelectorAll('.dock').forEach(x => x.remove()); if(!h) return; const d = document.createElement('div'); d.className = 'dock'; d.innerHTML = `<div class="in">${h}</div>`; $('#app').appendChild(d) };
   const tile = (key, on, ph2, name, sub, fn) => `<button class="pk ${on ? 'on' : ''}" onclick="${fn}('${key}')"><span class="ph">${ph2}</span><span class="nm">${esc(name)}</span>${sub ? `<span class="sb">${esc(sub)}</span>` : ''}</button>`;
@@ -991,7 +994,7 @@ async function reportPage(){
     <div class="card"><div class="ct">💰 잔액 흐름</div><div style="display:flex;gap:8px">
       ${box('전기 이월', yen(r.carry))}${box('기간 순액', (net >= 0 ? '+' : '') + yen(net), net >= 0 ? '#2E7D32' : '#B3261E')}${box('기말 잔액', yen(end), 'var(--navy)')}</div></div>
     ${card('📂 항목별 지출', r.cats.map(c => `<div class="it"><div class="grow">${esc(c.cat)}<div style="height:6px;background:#EEF1F4;border-radius:99px;margin-top:6px"><div style="height:100%;width:${r.spend ? Math.round(c.amt*100/r.spend) : 0}%;background:var(--green);border-radius:99px"></div></div></div><span class="amt">${yen(c.amt)}</span></div>`).join('') || empty('이 기간 지출이 없습니다'))}
-    ${!RM ? card(`📅 ${r.year}년 월별`, `<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:#7A8694"><td>월</td><td style="text-align:right">수입</td><td style="text-align:right">지출</td><td style="width:38%"></td></tr>
+    ${!RM ? card(`📅 ${r.year}년 월별`, `<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:#636E7B"><td>월</td><td style="text-align:right">수입</td><td style="text-align:right">지출</td><td style="width:38%"></td></tr>
       ${r.months.map(m => `<tr onclick="RM=${m.m};reportPage()" style="cursor:pointer;border-top:1px solid var(--line)"><td style="padding:7px 0">${m.m}월</td>
         <td style="text-align:right;color:#2E7D32">${m.in ? yen(m.in) : '-'}</td><td style="text-align:right">${m.out ? yen(m.out) : '-'}</td>
         <td><div style="height:8px;margin-left:10px;background:#EEF1F4;border-radius:99px"><div style="height:100%;width:${Math.round(m.out*100/maxM)}%;background:#FFC83D;border-radius:99px"></div></div></td></tr>`).join('')}</table>
@@ -1106,7 +1109,7 @@ async function matchesPage(){
       ${ATTEND ? `<div class="sub">참석 <b style="color:${m.yes >= m.need ? '#2E7D32' : '#B3261E'}">${m.yes}</b> / ${m.need}명</div>` : ''}</div>
       ${!ATTEND ? '<span class="link">›</span>' : m.mine ? tag(m.mine) : m.past ? '' : '<span class="tag t-wait">체크 ›</span>'}</a>`;
   V(`<div class="card"><div class="ct"><button class="btn b-ghost sm" onclick="calMove(-1)">‹</button><span>📅 ${ym}</span><button class="btn b-ghost sm" onclick="calMove(1)">›</button></div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px;color:#7A8694;margin-bottom:4px" data-nt>${WDH().map(w => `<div>${w}</div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px;color:#636E7B;margin-bottom:4px" data-nt>${WDH().map(w => `<div>${w}</div>`).join('')}</div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center" data-nt>${cells}</div>
       <div class="hint" style="margin-top:8px">초록 점이 있는 날을 누르면 그날 경기를 볼 수 있습니다.</div></div>
     ${CSel ? `<div class="ct" style="margin:16px 4px 10px" data-nt>${sl}</div>${(byDay[CSel] || []).map(row).join('') || empty('이 날은 경기가 없습니다')}` : ''}
@@ -1278,14 +1281,14 @@ async function mePage(sec){
     const adm = [can ? tile('mega', '공지', '#/notices') : '', boss ? tile('people', '회원 관리', '#/me/members', waiting) : '',
       syncOk ? tile('video', '영상 연동', '#/me/sync') : '', boss ? tile('down', '백업', '#/me/backup') : '', boss ? tile('swap', '회장 인계', '#/me/handover') : ''].join('');
     V(`<div class="hero" style="display:flex;align-items:center;gap:16px"><div style="position:relative;flex:none">${avi(ME.photo, 68, '내 프로필 사진')}
-          <button aria-label="사진 바꾸기" onclick="photoMenu()" style="position:absolute;right:-2px;bottom:-2px;width:28px;height:28px;border-radius:50%;background:#191F28;color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;padding:0">${ico('cam', 14)}</button></div>
+          <button aria-label="사진 바꾸기" onclick="photoMenu()" style="position:absolute;right:-6px;bottom:-6px;width:36px;height:36px;border-radius:50%;background:#191F28;color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;padding:0">${ico('cam', 14)}</button></div>
         <div><div class="ht" style="font-size:23px;margin:0">${esc(ME.name)}</div><div class="hs">${esc(ME.role)}${ME.position ? ' · ' + esc(ME.position) : ''}${ME.video_admin && ME.role != '회장' ? ' · 영상 관리' : ''}</div></div></div>
       ${md ? `<a class="card" href="#/me/dues" style="display:flex;justify-content:space-between;align-items:center;font-size:14px">
           <span>🙋 ${md.year}년 내 회비 <b>${yen(md.total)}</b></span><b style="color:${un ? '#B3261E' : '#2E7D32'}">${un ? '미납 ' + un + '개월 ›' : '미납 없음 ✅'}</b></a>` : ''}
       ${card('🔔 최근 알림', r.notis.slice(0, 3).map(notiRow).join('') || empty('알림이 없습니다'), r.notis.length > 3 ? '<a class="link" href="#/me/noti">전체 ›</a>' : '')}
       <div class="card" style="padding-top:12px;padding-bottom:6px"><div class="sub" style="font-weight:700;margin:4px 0 2px">내 메뉴</div>${mine}</div>
       ${adm ? `<div class="card" style="padding-top:12px;padding-bottom:6px"><div class="sub" style="font-weight:700;margin:4px 0 2px">관리</div>${adm}</div>` : ''}
-      <button style="display:block;margin:10px auto 0;background:none;border:0;color:#6B7684;font:inherit;font-size:14px;text-decoration:underline;cursor:pointer" onclick="ask('로그아웃할까요?', { ok:'로그아웃', danger:true }).then(o => o && logout())">로그아웃</button>
+      <button style="display:block;margin:4px auto 0;padding:12px 16px;background:none;border:0;color:#636E7B;font:inherit;font-size:14px;text-decoration:underline;cursor:pointer" onclick="ask('로그아웃할까요?', { ok:'로그아웃', danger:true }).then(o => o && logout())">로그아웃</button>
       <div class="hint" style="margin-top:12px;text-align:center">💡 브라우저 메뉴의 '홈 화면에 추가'를 누르면 앱처럼 쓸 수 있습니다.</div>`);
     if(unread) api('readAll').then(() => setBadge(0)).catch(()=>{});
     return;

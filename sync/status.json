@@ -1,11 +1,11 @@
 {
- "at": "2026-11-20T16:57:13.161Z",
+ "at": "2026-11-21T07:04:37.603Z",
  "ok": true,
  "step": "done",
- "found": 5,
- "ready": 5,
- "new": 0,
- "linked": 5,
+ "found": 6,
+ "ready": 6,
+ "new": 6,
+ "linked": 6,
  "fields": [
   "docCode",
   "groupCode",
@@ -39,5 +39,17 @@
   "downloadStatus"
  ],
  "error": "",
- "mp4": 5
+ "mp4": 6,
+ "linkShape": {
+  "type": "string",
+  "objKeys": [],
+  "host": "prod-cn-hls.xbotgo.net",
+  "path": "/hls/*/capture/*/index.m3u8",
+  "params": [
+   "t",
+   "sign"
+  ],
+  "hasSign": true,
+  "len": 169
+ }
 }

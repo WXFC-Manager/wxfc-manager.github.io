@@ -1,10 +1,10 @@
 {
- "at": "2026-11-21T07:04:37.603Z",
+ "at": "2026-11-21T16:08:27.074Z",
  "ok": true,
  "step": "done",
  "found": 6,
  "ready": 6,
- "new": 6,
+ "new": 0,
  "linked": 6,
  "fields": [
   "docCode",
@@ -40,16 +40,5 @@
  ],
  "error": "",
  "mp4": 6,
- "linkShape": {
-  "type": "string",
-  "objKeys": [],
-  "host": "prod-cn-hls.xbotgo.net",
-  "path": "/hls/*/capture/*/index.m3u8",
-  "params": [
-   "t",
-   "sign"
-  ],
-  "hasSign": true,
-  "len": 169
- }
+ "removed": 0
 }

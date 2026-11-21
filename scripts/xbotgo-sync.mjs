@@ -57,13 +57,13 @@ async function main() {
   if (!token) throw new Error('로그인 응답에 토큰이 없습니다');
 
   status.step = 'list';
-  const all = [];
+  const all = []; let complete = false;
   for (let page = 1; page <= 10; page++) {
     const d = await call('GET', 'cloud-drive/api/docs/cloud/docs', { params: { pageNo: page, pageSize: 50, orderBy: 'desc' }, token });
     const list = (d && d.resultList) || [];
     if (page == 1 && list[0]) status.fields = Object.keys(list[0]).slice(0, 30);
     all.push(...list);
-    if (list.length < 50 || all.length >= ((d && d.totalRecord) || 0)) break;
+    if (list.length < 50 || all.length >= ((d && d.totalRecord) || 0)) { complete = true; break; }
   }
   status.found = all.length;
   const ready = all.filter(v => v && v.docCode && (v.videoStatus == null || v.videoStatus === 1));
@@ -100,7 +100,10 @@ async function main() {
 
   status.step = 'save';
   status.ok = true;
-  const r = await sync(items, { ok: true, found: status.found, ready: status.ready, new: status.new });
+  // 전체 목록(영상 코드만)을 함께 보내 XbotGo에서 지운 영상을 사이트에서도 숨기게 함 — 목록을 끝까지 받았을 때만
+  const seen = complete ? all.filter(v => v && v.docCode).map(v => String(v.docCode)) : [];
+  const r = await sync(items, { ok: true, found: status.found, ready: status.ready, new: status.new, complete, seen });
+  status.removed = (r && r.removed) || 0;
   status.linked = r.saved;
   status.step = 'done';
 }

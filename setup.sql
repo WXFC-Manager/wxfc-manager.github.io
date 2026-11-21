@@ -117,6 +117,8 @@ create table if not exists videos(
 alter table videos add column if not exists mp4 text;
 alter table videos add column if not exists mp4_until timestamptz;
 alter table videos add column if not exists link_manual boolean default false;  -- 영상 관리자가 직접 연결/해제한 영상은 자동 연결 안 함
+alter table videos add column if not exists missing int default 0;      -- XbotGo 목록에 연속으로 안 보인 횟수
+alter table videos add column if not exists gone boolean default false;  -- 2번 연속 안 보이면 XbotGo에서 지운 것으로 보고 자동 숨김 (다시 보이면 복구)
 create table if not exists votes(
   poll_id bigint references polls(id) on delete cascade, member_id bigint references members(id) on delete cascade,
   member_name text, choice int, at timestamptz default now(), primary key(poll_id, member_id));
@@ -170,7 +172,7 @@ revoke all on function _vlink() from public, anon, authenticated;
 
 create or replace function video_sync(p_key text, p_items jsonb default '[]', p_status jsonb default null) returns jsonb
 language plpgsql security definer set search_path=public, extensions as $$
-declare h text; it jsonb; n int := 0; vid bigint;
+declare h text; it jsonb; n int := 0; vid bigint; seen jsonb; n_gone int := 0;
 begin
   select v->>'hash' into h from config where k='sync_key';
   if h is null or length(coalesce(p_key,'')) < 24 or encode(digest(p_key,'sha256'),'hex') <> h then
@@ -189,13 +191,23 @@ begin
       returning id into vid;
     n := n + 1;
   end loop;
+  -- XbotGo에서 지운 영상 정리: 전체 목록을 끝까지 받았을 때만, 2번 연속 안 보이면 숨김 (일시 오류로 잘못 숨기는 것 방지)
+  seen := p_status->'seen';
+  if p_status is not null then p_status := p_status - 'seen'; end if;
+  if jsonb_typeof(seen) = 'array' and jsonb_array_length(seen) > 0 and coalesce((p_status->>'complete')::boolean, false) then
+    update videos set missing = 0, gone = false where doc_code in (select jsonb_array_elements_text(seen)) and (missing <> 0 or gone);
+    update videos set missing = missing + 1 where doc_code not in (select jsonb_array_elements_text(seen));
+    update videos set gone = true where missing >= 2 and not gone;
+    get diagnostics n_gone = row_count;
+    p_status := p_status || jsonb_build_object('removed', n_gone);
+  end if;
   perform _vlink();
   if p_status is not null then
     insert into config values('video_sync_status', p_status || jsonb_build_object('at', now(), 'saved', n))
       on conflict(k) do update set v=excluded.v;
     delete from config where k='sync_request';   -- 가져오기를 마쳤으니 수동 요청 처리 완료
   end if;
-  return jsonb_build_object('ok', true, 'saved', n, 'requested', (select v->>'at' from config where k='sync_request'),
+  return jsonb_build_object('ok', true, 'saved', n, 'removed', n_gone, 'requested', (select v->>'at' from config where k='sync_request'),
     'known', coalesce((select jsonb_agg(doc_code) from videos where sign is not null), '[]'::jsonb));
 end $$;
 
@@ -536,10 +548,10 @@ begin
     return jsonb_build_object('list', coalesce((select jsonb_agg(t) from (
       select v.id, v.shot_at, v.duration, v.title, v.match_id, m.title match_title, m.opponent
       from videos v left join matches m on m.id=v.match_id
-      where not v.hidden and (v.sign is not null or v.mp4 is not null)
+      where not v.hidden and not coalesce(v.gone,false) and (v.sign is not null or v.mp4 is not null)
         and (nullif(p_d->>'match','') is null or v.match_id = (p_d->>'match')::bigint)
       order by v.shot_at desc nulls last limit least(coalesce(nullif(p_d->>'limit','')::int, 30), 50) offset greatest(coalesce(nullif(p_d->>'offset','')::int, 0), 0)) t),'[]'::jsonb),
-      'total', (select count(*) from videos v where not v.hidden and (v.sign is not null or v.mp4 is not null)),
+      'total', (select count(*) from videos v where not v.hidden and not coalesce(v.gone,false) and (v.sign is not null or v.mp4 is not null)),
       'last', (select v->>'at' from config where k='video_sync_status'),
       'requested', (select v->>'at' from config where k='sync_request'));
 
@@ -552,7 +564,7 @@ begin
   when 'videoPlay' then
     return (select jsonb_build_object('mp4', case when v.mp4_until > now() + interval '10 minutes' then v.mp4 end, 'link', v.link, 'shot_at', v.shot_at, 'duration', v.duration, 'title', v.title,
         'match_id', v.match_id, 'match_title', m.title, 'opponent', m.opponent, 'starts_at', m.starts_at)
-      from videos v left join matches m on m.id=v.match_id where v.id=(p_d->>'id')::bigint and not v.hidden);
+      from videos v left join matches m on m.id=v.match_id where v.id=(p_d->>'id')::bigint and not v.hidden and not coalesce(v.gone,false));
 
   when 'videoEdit' then
     if not vadm then return _err('영상 관리 권한이 없습니다 (회장에게 요청하세요)'); end if;
